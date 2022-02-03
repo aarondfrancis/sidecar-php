@@ -1,0 +1,40 @@
+{
+    "name": "hammerstone/sidecar-php",
+    "description": "A Laravel package to ",
+    "type": "library",
+    "license": "MIT",
+    "authors": [
+        {
+            "name": "Aaron Francis",
+            "email": "aaron@hammerstone.dev"
+        }
+    ],
+    "require": {
+        "php": "^7.4|^8.0",
+        "hammerstone/sidecar": "dev-master",
+        "laravel/serializable-closure": "^1.0.0",
+        "laravel/vapor-core": "^2.11.0"
+    },
+    "require-dev": {
+        "orchestra/testbench": "^5.0|^6.0",
+        "mockery/mockery": "^1.3.3",
+        "phpunit/phpunit": "^8.4"
+    },
+    "autoload": {
+        "psr-4": {
+            "Hammerstone\\Sidecar\\PHP\\": "src/"
+        }
+    },
+    "autoload-dev": {
+        "psr-4": {
+            "Hammerstone\\Sidecar\\PHP\\Tests\\": "tests/"
+        }
+    },
+    "extra": {
+        "laravel": {
+            "providers": [
+                "Hammerstone\\Sidecar\\PHP\\Providers\\SidecarPhpServiceProvider"
+            ]
+        }
+    }
+}
