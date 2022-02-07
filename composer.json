@@ -1,6 +1,6 @@
 {
     "name": "hammerstone/sidecar-php",
-    "description": "A Laravel package to ",
+    "description": "A Laravel package to run PHP functions and Laravel applications on Lambda",
     "type": "library",
     "license": "MIT",
     "authors": [
@@ -11,7 +11,7 @@
     ],
     "require": {
         "php": "^7.4|^8.0",
-        "hammerstone/sidecar": "dev-master",
+        "hammerstone/sidecar": "^0.3.6",
         "laravel/serializable-closure": "^1.0.0",
         "laravel/vapor-core": "^2.11.0"
     },
