@@ -62,8 +62,7 @@ class PhpLambda extends LambdaFunction
 
     public function shouldResetClosureBinding()
     {
-        // Since we don't ship the entire application, make the
-        // closure fully anonymous by resetting the scope.
+        // Make the closure fully anonymous by resetting the scope.
         return true;
     }
 

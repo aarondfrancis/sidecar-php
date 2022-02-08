@@ -33,11 +33,6 @@ class LaravelLambda extends PhpLambda
         ];
     }
 
-    public function shouldResetClosureBinding()
-    {
-        return false;
-    }
-
     public function variables()
     {
         return array_merge(parent::variables(), [
