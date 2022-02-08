@@ -1,4 +1,7 @@
 <?php
+
+use Illuminate\Contracts\Console\Kernel;
+
 ini_set('display_errors', '1');
 
 error_reporting(E_ALL);
@@ -11,6 +14,13 @@ $autoloaders = [
 
 foreach ($autoloaders as $autoloader) {
     file_exists($autoloader) && require $autoloader;
+}
+
+// If this is a full Laravel app, then boot the application.
+if (($_ENV['SIDECAR_IS_FULL_LARAVEL'] ?? false) === 'true') {
+    fwrite(STDERR, 'Booting Laravel in the handler');
+    $app = require __DIR__ . '/bootstrap/app.php';
+    $app->make(Kernel::class)->bootstrap();
 }
 
 function handleException(Throwable $exception)
