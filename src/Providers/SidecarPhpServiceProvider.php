@@ -5,28 +5,25 @@
 
 namespace Hammerstone\Sidecar\PHP\Providers;
 
-use Hammerstone\Sidecar\Clients\CloudWatchLogsClient;
-use Hammerstone\Sidecar\Clients\LambdaClient;
-use Hammerstone\Sidecar\Commands\Activate;
-use Hammerstone\Sidecar\Commands\Configure;
-use Hammerstone\Sidecar\Commands\Deploy;
-use Hammerstone\Sidecar\Commands\Install;
-use Hammerstone\Sidecar\Commands\Warm;
-use Hammerstone\Sidecar\Manager;
-use Hammerstone\Sidecar\Package;
 use Hammerstone\Sidecar\PHP\Commands\FetchVaporLayers;
-use Hammerstone\Sidecar\PHP\Commands\VaporLayers;
-use Illuminate\Support\Arr;
+use Hammerstone\Sidecar\PHP\Queue\Workers\LaravelLambdaWorker;
+use Illuminate\Queue\Worker;
 use Illuminate\Support\ServiceProvider;
 
 class SidecarPhpServiceProvider extends ServiceProvider
 {
     public function boot()
     {
-        if ($this->app->runningInConsole()) {
-            $this->commands([
-                FetchVaporLayers::class,
-            ]);
+        if (! $this->app->runningInConsole()) {
+            return;
+        }
+
+        $this->commands([
+            FetchVaporLayers::class,
+        ]);
+
+        if (config('sidecar.queue.enabled', false)) {
+            $this->app->bind(Worker::class, LaravelLambdaWorker::class);
         }
     }
 }
