@@ -2,6 +2,7 @@
 
 namespace Hammerstone\Sidecar\PHP\Support;
 
+use Closure;
 use Illuminate\Support\Traits\ForwardsCalls;
 
 abstract class Decorator
@@ -18,6 +19,13 @@ abstract class Decorator
     public function getDecorated(): object
     {
         return $this->decorated;
+    }
+
+    protected function invade(Closure $callback)
+    {
+        $subject = $this->getDecorated();
+
+        return Closure::bind($callback, $subject, $subject::class)();
     }
 
     public function __get($attribute)

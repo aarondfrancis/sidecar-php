@@ -2,7 +2,6 @@
 
 namespace Hammerstone\Sidecar\PHP\Queue;
 
-use Closure;
 use Hammerstone\Sidecar\PHP\LaravelLambda;
 use Hammerstone\Sidecar\PHP\Support\Decorator;
 use Illuminate\Queue\Jobs\JobName;
@@ -18,7 +17,7 @@ class LaravelLambdaWorker extends Worker
         $lambdaJob = new class ($job) extends Decorator {
             public function fire()
             {
-                $this->invade($this->getDecorated(), function () {
+                $this->invade(function () {
                     $payload = $this->payload();
 
                     $enabled = config('sidecar.queue.enabled', false);
@@ -68,11 +67,6 @@ class LaravelLambdaWorker extends Worker
                         $this->release($result['delay']);
                     }
                 });
-            }
-
-            private function invade(object $subject, Closure $callback)
-            {
-                return Closure::bind($callback, $subject, $subject::class)();
             }
         };
 
