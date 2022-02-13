@@ -5,6 +5,7 @@ namespace Hammerstone\Sidecar\PHP\Queue;
 use Hammerstone\Sidecar\PHP\LaravelLambda;
 use Hammerstone\Sidecar\PHP\Support\Decorator;
 use Illuminate\Queue\Jobs\JobName;
+use Illuminate\Queue\Jobs\SyncJob;
 use Illuminate\Queue\Worker;
 use Illuminate\Queue\WorkerOptions;
 use Illuminate\Support\Arr;
@@ -44,18 +45,22 @@ class LaravelLambdaWorker extends Worker
                     $this->instance = $this->resolve($class);
 
                     $result = LaravelLambda::execute(function () use ($class, $method, $data, $queue, $payload, $connectionName) {
-                        $job = app()->makeWith(SyncJob::class, [
-                            'queue' => $queue,
-                            'payload' => $payload,
-                            'connectionName' => $connectionName,
-                        ]);
+                        $container = app();
+                        $job = new class ($container, $payload, $connectionName, $queue) extends SyncJob {
+                            public $delay = 0;
 
-                        app()->make($class)->{$method}($job, $data);
+                            public function release($delay = 0)
+                            {
+                                parent::release($this->delay = $delay);
+                            }
+                        };
+
+                        $container->make($class)->{$method}($job, $data);
 
                         return [
                             'deleted' => $job->isDeleted(),
                             'released' => $job->isReleased(),
-                            'delay' => $job->getReleaseDelay(),
+                            'delay' => $job->delay,
                         ];
                     })->throw()->body();
 
