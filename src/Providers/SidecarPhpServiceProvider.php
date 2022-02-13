@@ -18,7 +18,9 @@ use Illuminate\Notifications\SendQueuedNotifications;
 use Illuminate\Queue\Console\WorkCommand;
 use Illuminate\Queue\Worker;
 use Illuminate\Support\Arr;
+use Illuminate\Support\Collection;
 use Illuminate\Support\ServiceProvider;
+use Illuminate\Support\Str;
 use ReflectionClass;
 
 class SidecarPhpServiceProvider extends ServiceProvider
@@ -43,14 +45,18 @@ class SidecarPhpServiceProvider extends ServiceProvider
     protected function listenForJobsBeingQueued()
     {
         $this->app['queue']->createPayloadUsing(function ($connectionName, $queue, $payload) {
+            $queue = Str::after($queue, 'queues:');
             $queueable = $payload['data']['command'];
+
+            $allowedQueues = Collection::wrap(config('sidecar.queue.allowed_queues', '*'))->map(fn ($queue) => Str::after($queue, 'queues:'));
+            $queueIsAllowed = $allowedQueues->contains('*') || $allowedQueues->contains($queue);
 
             $optedIn = (new ReflectionClass($this->getJobFromQueueable($queueable)))->implementsInterface(RunInLambda::class);
             $optedOut = (new ReflectionClass($this->getJobFromQueueable($queueable)))->implementsInterface(DoNotRunInLambda::class);
 
             return [
                 'optedInForLambdaExecution' => $optedIn,
-                'optedOutForLambdaExecution' => $optedOut,
+                'optedOutForLambdaExecution' => $optedOut || $queueIsAllowed === false,
             ];
         });
 
