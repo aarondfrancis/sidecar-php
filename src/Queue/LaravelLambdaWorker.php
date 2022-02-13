@@ -6,7 +6,6 @@ use Closure;
 use Hammerstone\Sidecar\PHP\LaravelLambda;
 use Hammerstone\Sidecar\PHP\Support\Decorator;
 use Illuminate\Queue\Jobs\JobName;
-use Illuminate\Queue\Jobs\SyncJob;
 use Illuminate\Queue\Worker;
 use Illuminate\Queue\WorkerOptions;
 use Illuminate\Support\Arr;
@@ -45,7 +44,7 @@ class LaravelLambdaWorker extends Worker
                     $connectionName = $this->connectionName;
                     $this->instance = $this->resolve($class);
 
-                    LaravelLambda::execute(function () use ($class, $method, $data, $queue, $payload, $connectionName) {
+                    $result = LaravelLambda::execute(function () use ($class, $method, $data, $queue, $payload, $connectionName) {
                         $job = app()->makeWith(SyncJob::class, [
                             'queue' => $queue,
                             'payload' => $payload,
@@ -53,7 +52,21 @@ class LaravelLambdaWorker extends Worker
                         ]);
 
                         app()->make($class)->{$method}($job, $data);
-                    })->throw();
+
+                        return [
+                            'deleted' => $job->isDeleted(),
+                            'released' => $job->isReleased(),
+                            'delay' => $job->getReleaseDelay(),
+                        ];
+                    })->throw()->body();
+
+                    if ($result['deleted']) {
+                        $this->delete();
+                    }
+
+                    if ($result['released']) {
+                        $this->release($result['delay']);
+                    }
                 });
             }
 
