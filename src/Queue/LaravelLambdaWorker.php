@@ -2,12 +2,14 @@
 
 namespace Hammerstone\Sidecar\PHP\Queue;
 
+use Closure;
 use Hammerstone\Sidecar\PHP\LaravelLambda;
 use Hammerstone\Sidecar\PHP\Support\Decorator;
 use Illuminate\Broadcasting\BroadcastEvent;
 use Illuminate\Events\CallQueuedListener;
 use Illuminate\Mail\SendQueuedMailable;
 use Illuminate\Notifications\SendQueuedNotifications;
+use Illuminate\Queue\Jobs\JobName;
 use Illuminate\Queue\Worker;
 use Illuminate\Queue\WorkerOptions;
 use Illuminate\Support\Arr;
@@ -20,28 +22,52 @@ class LaravelLambdaWorker extends Worker
         $lambdaJob = new class ($job) extends Decorator {
             public function fire()
             {
-                $job = $this->getDecorated();
+                $this->invade($this->getDecorated(), function () {
+                    $payload = $this->payload();
 
-                $enabled = config('sidecar.queue.enabled', false);
-                $optInRequired = config('sidecar.queue.opt_in_required', true);
-                $optedIn = Arr::get($job->payload(), 'optedInForLambdaExecution', false);
-                $optedOut = Arr::get($job->payload(), 'optedOutForLambdaExecution', false);
+                    $enabled = config('sidecar.queue.enabled', false);
+                    $optInRequired = config('sidecar.queue.opt_in_required', true);
+                    $optedIn = Arr::get($payload, 'optedInForLambdaExecution', false);
+                    $optedOut = Arr::get($payload, 'optedOutForLambdaExecution', false);
 
-                if (! $enabled) {
-                    return $job->fire();
-                }
+                    if (! $enabled) {
+                        return $this->fire();
+                    }
 
-                if ($optedOut) {
-                    return $job->fire();
-                }
+                    if ($optedOut) {
+                        return $this->fire();
+                    }
 
-                if ($optInRequired && ! $optedIn) {
-                    return $job->fire();
-                }
+                    if ($optInRequired && ! $optedIn) {
+                        return $this->fire();
+                    }
 
-                LaravelLambda::execute(function () use ($job) {
-                    $job->fire();
-                })->throw();
+                    // The \Illuminate\Queue\Jobs\Job instance wasn't serialising to the closure.
+                    // We can new up another instance with these primitive params covering all queue driver constructors.
+                    $jobClass = $this::class;
+                    $jobParams = [
+                        'job' => $this->job ?? null,
+                        'reserved' => $this->reserved ?? null,
+                        'connectionName' => $this->connectionName ?? null,
+                        'queue' => $this->queue ?? null,
+                        'payload' => $this->payload ?? null,
+                    ];
+                    $data = $payload['data'];
+                    [$class, $method] = JobName::parse($payload['job']);
+
+                    // Set the resolved instance the same as the original fire method.
+                    $this->instance = $this->resolve($class);
+
+                    LaravelLambda::execute(function () use ($class, $method, $data, $jobClass, $jobParams) {
+                        $job = app()->makeWith($jobClass, $jobParams);
+                        app()->make($class)->{$method}($job, $data);
+                    })->throw();
+                });
+            }
+
+            private function invade(object $subject, Closure $callback)
+            {
+                return Closure::bind($callback, $subject, $subject::class)();
             }
         };
 
