@@ -5,11 +5,8 @@ namespace Hammerstone\Sidecar\PHP\Queue;
 use Closure;
 use Hammerstone\Sidecar\PHP\LaravelLambda;
 use Hammerstone\Sidecar\PHP\Support\Decorator;
-use Illuminate\Broadcasting\BroadcastEvent;
-use Illuminate\Events\CallQueuedListener;
-use Illuminate\Mail\SendQueuedMailable;
-use Illuminate\Notifications\SendQueuedNotifications;
 use Illuminate\Queue\Jobs\JobName;
+use Illuminate\Queue\Jobs\SyncJob;
 use Illuminate\Queue\Worker;
 use Illuminate\Queue\WorkerOptions;
 use Illuminate\Support\Arr;
@@ -42,24 +39,19 @@ class LaravelLambdaWorker extends Worker
                         return $this->fire();
                     }
 
-                    // The \Illuminate\Queue\Jobs\Job instance wasn't serialising to the closure.
-                    // We can new up another instance with these primitive params covering all queue driver constructors.
-                    $jobClass = $this::class;
-                    $jobParams = [
-                        'job' => $this->job ?? null,
-                        'reserved' => $this->reserved ?? null,
-                        'connectionName' => $this->connectionName ?? null,
-                        'queue' => $this->queue ?? null,
-                        'payload' => $this->payload ?? null,
-                    ];
-                    $data = $payload['data'];
                     [$class, $method] = JobName::parse($payload['job']);
-
-                    // Set the resolved instance the same as the original fire method.
+                    $data = $payload['data'];
+                    $queue = $this->queue;
+                    $connectionName = $this->connectionName;
                     $this->instance = $this->resolve($class);
 
-                    LaravelLambda::execute(function () use ($class, $method, $data, $jobClass, $jobParams) {
-                        $job = app()->makeWith($jobClass, $jobParams);
+                    LaravelLambda::execute(function () use ($class, $method, $data, $queue, $payload, $connectionName) {
+                        $job = app()->makeWith(SyncJob::class, [
+                            'queue' => $queue,
+                            'payload' => $payload,
+                            'connectionName' => $connectionName,
+                        ]);
+
                         app()->make($class)->{$method}($job, $data);
                     })->throw();
                 });
