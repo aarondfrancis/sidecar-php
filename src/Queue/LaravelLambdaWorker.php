@@ -39,7 +39,9 @@ class LaravelLambdaWorker extends Worker
                     return $job->fire();
                 }
 
-                LaravelLambda::execute(fn () => $job->fire())->throw();
+                LaravelLambda::execute(function () use ($job) {
+                    $job->fire();
+                })->throw();
             }
         };
 
