@@ -24,8 +24,8 @@ class LaravelLambdaWorker extends Worker
 
                 $enabled = config('sidecar.queue.enabled', false);
                 $optInRequired = config('sidecar.queue.opt_in_required', true);
-                $optedIn = Arr::get($this->resolveJob($job)->payload(), 'optedInForLambdaExecution', false);
-                $optedOut = Arr::get($this->resolveJob($job)->payload(), 'optedOutForLambdaExecution', false);
+                $optedIn = Arr::get($job->payload(), 'optedInForLambdaExecution', false);
+                $optedOut = Arr::get($job->payload(), 'optedOutForLambdaExecution', false);
 
                 if (! $enabled) {
                     return $job->fire();
@@ -40,25 +40,6 @@ class LaravelLambdaWorker extends Worker
                 }
 
                 LaravelLambda::execute(fn () => $job->fire())->throw();
-            }
-
-            private function resolveJob($queueable)
-            {
-                $jobGetter = Arr::get([
-                    SendQueuedMailable::class => 'mailable',
-                    SendQueuedNotifications::class => 'notification',
-                    CallQueuedListener::class => 'class',
-                    BroadcastEvent::class => 'event',
-                    ...config('sidecar.queue.job_getters', []),
-                ], $queueable::class);
-
-                if (! $jobGetter) {
-                    return $queueable;
-                }
-
-                return method_exists($queueable, $jobGetter)
-                    ? $queueable->{$jobGetter}()
-                    : $queueable->{$jobGetter};
             }
         };
 
