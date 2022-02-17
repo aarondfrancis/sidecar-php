@@ -54,13 +54,17 @@ class LaravelLambdaWorker extends Worker
                                 parent::release($this->delay = $delay);
                             }
                         };
+                        // TODO: set drivers to collect dispatches, failed jobs, and logs for the response.
 
                         $container->make($class)->{$method}($job, $data);
 
                         return [
                             'deleted' => $job->isDeleted(),
                             'released' => $job->isReleased(),
-                            'delay' => $job->delay,
+                            'delay' => (int) $job->delay,
+                            // TODO: jobs to dispatch. Note that deleted and released did not dispatch anything.
+                            // TODO: failed jobs to add, might be worth having this execute locally to check that failed jobs are done by the queue manager?
+                            // TODO: logs to log. This should be done by the queue manager because a Forge box likely would have a log file vs. cloudwatch logs.
                         ];
                     })->throw()->body();
 
@@ -71,6 +75,10 @@ class LaravelLambdaWorker extends Worker
                     if ($result['released']) {
                         $this->release($result['delay']);
                     }
+
+                    // TODO: dispatch the returned jobs
+                    // TODO: log the returned failed jobs
+                    // TODO: log the returned logs
                 });
             }
         };

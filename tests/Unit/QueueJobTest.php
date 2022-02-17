@@ -2,173 +2,76 @@
 
 namespace Hammerstone\Sidecar\PHP\Tests\Unit;
 
-class QueueJobTest extends BaseTest
-{
-    /** @test */
-    public function RunInLambda_interface_sets_opted_in_to_true()
-    {
-        $this->markTestIncomplete('do better');
-    }
+use Hammerstone\Sidecar\PHP\Tests\Support\QueueTestHelper;
+use Hammerstone\Sidecar\PHP\Tests\Support\SidecarTestHelper;
+use Illuminate\Support\Facades\Mail;
+use Illuminate\Support\Facades\Notification;
+use Illuminate\Support\Facades\Queue;
 
-    /** @test */
-    public function no_RunInLambda_interface_sets_opted_in_to_false()
-    {
-        $this->markTestIncomplete('do better');
-    }
+/** @see \Hammerstone\Sidecar\PHP\Tests\Unit\WorkJobTest for how we make use of the payload's `optedInForLambdaExecution` and `optedOutForLambdaExecution` values. */
 
-    /** @test */
-    public function DoNotRunInLambda_interface_sets_opted_out_to_true()
-    {
-        $this->markTestIncomplete('do better');
-    }
+beforeEach(function () {
+    SidecarTestHelper::record()->enableQueueFeature(optin: true, queues: '*');
+});
 
-    /** @test */
-    public function no_DoNotRunInLambda_interface_sets_opted_out_to_false()
-    {
-        $this->markTestIncomplete('do better');
-    }
+test('given the job implements RunInLambda, then optedInForLambdaExecution is set to true in the payload', function (QueueTestHelper $pendingJob) {
+    $payload = $pendingJob->onQueue('lambda')->payload();
 
-    /** @test */
-    public function RunInLambda_interface_where_all_queues_allowed_sets_opted_in_to_true()
-    {
-        $this->markTestIncomplete('do better');
-    }
+    expect($payload['optedInForLambdaExecution'])->toBe(true);
+    expect($payload['optedOutForLambdaExecution'])->toBe(false);
+})->with('jobs that implement RunInLambda');
 
-    /** @test */
-    public function no_RunInLambda_interface_where_all_queues_allowed_sets_opted_in_to_false()
-    {
-        $this->markTestIncomplete('do better');
-    }
+test('given the job does not implement RunInLambda, then optedInForLambdaExecution is set to false in the payload', function (QueueTestHelper $pendingJob) {
+    $payload = $pendingJob->onQueue('lambda')->payload();
 
-    /** @test */
-    public function RunInLambda_interface_where_queue_is_allowed_sets_opted_in_to_true()
-    {
-        $this->markTestIncomplete('do better');
-    }
+    expect($payload['optedInForLambdaExecution'])->toBe(false);
+    expect($payload['optedOutForLambdaExecution'])->toBe(false);
+})->with('jobs that implement nothing');
 
-    /** @test */
-    public function no_RunInLambda_interface_where_queue_is_allowed_sets_opted_in_to_false()
-    {
-        $this->markTestIncomplete('do better');
-    }
+test('given the job implements DoNotRunInLambda, then optedOutForLambdaExecution is set to true in the payload', function (QueueTestHelper $pendingJob, string $onQueue, string|array $allowedQueues) {
+    SidecarTestHelper::record()->enableQueueFeature(optin: true, queues: $allowedQueues);
+    $payload = $pendingJob->onQueue($onQueue)->payload();
 
-    /** @test */
-    public function RunInLambda_interface_where_queue_is_not_allowed_sets_opted_in_to_true()
-    {
-        $this->markTestIncomplete('do better');
-    }
+    expect($payload['optedInForLambdaExecution'])->toBe(false);
+    expect($payload['optedOutForLambdaExecution'])->toBe(true);
+})->with('jobs that implement DoNotRunInLambda')->with([
+    'all queues are allowed (string config value)' => ['lambda', '*'],
+    'the queue is allowed (string config value)' => ['lambda', 'lambda'],
+    'the queue is not allowed (string config value)' => ['not-lambda', 'lambda'],
+    'all queues are allowed (array config value)' => ['lambda', ['*']],
+    'the queue is allowed (array config value)' => ['lambda', ['lambda']],
+    'the queue is not allowed (array config value)' => ['not-lambda', ['lambda']],
+    'allowed queues contains * with other values (array config value)' => ['not-lambda', ['lambda', '*']],
+]);
 
-    /** @test */
-    public function no_RunInLambda_interface_where_queue_is_not_allowed_sets_opted_in_to_false()
-    {
-        $this->markTestIncomplete('do better');
-    }
+test('given the job implements both RunInLambda and DoNotRunInLambda, then optedOutForLambdaExecution is set to true in the payload', function (QueueTestHelper $pendingJob, string $onQueue, string|array $allowedQueues) {
+    SidecarTestHelper::record()->enableQueueFeature(optin: true, queues: $allowedQueues);
+    $payload = $pendingJob->onQueue($onQueue)->payload();
 
-    /** @test */
-    public function DoNotRunInLambda_interface_where_all_queues_allowed_sets_opted_out_to_true()
-    {
-        $this->markTestIncomplete('do better');
-    }
+    expect($payload['optedInForLambdaExecution'])->toBe(true);
+    expect($payload['optedOutForLambdaExecution'])->toBe(true);
+})->with('jobs that implement RunInLambda and DoNotRunInLambda')->with([
+    'all queues are allowed (string config value)' => ['lambda', '*'],
+    'the queue is allowed (string config value)' => ['lambda', 'lambda'],
+    'the queue is not allowed (string config value)' => ['not-lambda', 'lambda'],
+    'all queues are allowed (array config value)' => ['lambda', ['*']],
+    'the queue is allowed (array config value)' => ['lambda', ['lambda']],
+    'the queue is not allowed (array config value)' => ['not-lambda', ['lambda']],
+    'allowed queues contains * with other values (array config value)' => ['not-lambda', ['lambda', '*']],
+]);
 
-    /** @test */
-    public function no_DoNotRunInLambda_interface_where_all_queues_allowed_sets_opted_out_to_false()
-    {
-        $this->markTestIncomplete('do better');
-    }
+test('given the job does not implement DoNotRunInLambda, then optedOutForLambdaExecution is true in the payload only when the queue is not allowed', function (QueueTestHelper $pendingJob, string $onQueue, string|array $allowedQueues, bool $expected) {
+    SidecarTestHelper::record()->enableQueueFeature(optin: true, queues: $allowedQueues);
+    $payload = $pendingJob->onQueue($onQueue)->payload();
 
-    /** @test */
-    public function DoNotRunInLambda_interface_where_queue_is_allowed_sets_opted_out_to_true()
-    {
-        $this->markTestIncomplete('do better');
-    }
-
-    /** @test */
-    public function no_DoNotRunInLambda_interface_where_queue_is_allowed_sets_opted_out_to_false()
-    {
-        $this->markTestIncomplete('do better');
-    }
-
-    /** @test */
-    public function DoNotRunInLambda_interface_where_queue_is_not_allowed_sets_opted_out_to_true()
-    {
-        $this->markTestIncomplete('do better');
-    }
-
-    /** @test */
-    public function no_DoNotRunInLambda_interface_where_queue_is_not_allowed_sets_opted_out_to_true()
-    {
-        $this->markTestIncomplete('do better');
-    }
-
-    /** @test */
-    public function RunInLambda_interface_sets_opted_in_to_true_for_queued_jobs()
-    {
-        $this->markTestIncomplete('do better');
-    }
-
-    /** @test */
-    public function RunInLambda_interface_sets_opted_in_to_true_for_queued_events()
-    {
-        $this->markTestIncomplete('do better');
-    }
-
-    /** @test */
-    public function RunInLambda_interface_sets_opted_in_to_true_for_queued_listeners()
-    {
-        $this->markTestIncomplete('do better');
-    }
-
-    /** @test */
-    public function RunInLambda_interface_sets_opted_in_to_true_for_queued_mailables()
-    {
-        $this->markTestIncomplete('do better');
-    }
-
-    /** @test */
-    public function RunInLambda_interface_sets_opted_in_to_true_for_queued_notifications()
-    {
-        $this->markTestIncomplete('do better');
-    }
-
-    /** @test */
-    public function RunInLambda_interface_sets_opted_in_to_true_for_custom_job_wrappers_via_config()
-    {
-        $this->markTestIncomplete('do better');
-    }
-
-    /** @test */
-    public function DoNotRunInLambda_interface_sets_opted_out_to_true_for_queued_jobs()
-    {
-        $this->markTestIncomplete('do better');
-    }
-
-    /** @test */
-    public function DoNotRunInLambda_interface_sets_opted_out_to_true_for_queued_events()
-    {
-        $this->markTestIncomplete('do better');
-    }
-
-    /** @test */
-    public function DoNotRunInLambda_interface_sets_opted_out_to_true_for_queued_listeners()
-    {
-        $this->markTestIncomplete('do better');
-    }
-
-    /** @test */
-    public function DoNotRunInLambda_interface_sets_opted_out_to_true_for_queued_mailables()
-    {
-        $this->markTestIncomplete('do better');
-    }
-
-    /** @test */
-    public function DoNotRunInLambda_interface_sets_opted_out_to_true_for_queued_notifications()
-    {
-        $this->markTestIncomplete('do better');
-    }
-
-    /** @test */
-    public function DoNotRunInLambda_interface_sets_opted_out_to_true_for_custom_job_wrappers_via_config()
-    {
-        $this->markTestIncomplete('do better');
-    }
-}
+    expect($payload['optedInForLambdaExecution'])->toBe(false);
+    expect($payload['optedOutForLambdaExecution'])->toBe($expected);
+})->with('jobs that implement nothing')->with([
+    'all queues are allowed (string config value)' => ['lambda', '*', false],
+    'the queue is allowed (string config value)' => ['lambda', 'lambda', false],
+    'the queue is not allowed (string config value)' => ['not-lambda', 'lambda', true],
+    'all queues are allowed (array config value)' => ['lambda', ['*'], false],
+    'the queue is allowed (array config value)' => ['lambda', ['lambda'], false],
+    'the queue is not allowed (array config value)' => ['not-lambda', ['lambda'], true],
+    'allowed queues contains * with other values (array config value)' => ['not-lambda', ['lambda', '*'], false],
+]);
