@@ -10,6 +10,7 @@ use Hammerstone\Sidecar\PHP\Commands\FetchVaporLayers;
 use Hammerstone\Sidecar\PHP\Contracts\Queue\DoNotRunInLambda;
 use Hammerstone\Sidecar\PHP\Contracts\Queue\RunInLambda;
 use Hammerstone\Sidecar\PHP\Queue\LaravelLambdaWorker;
+use Hammerstone\Sidecar\PHP\Support\Config\SidecarConfig;
 use Illuminate\Broadcasting\BroadcastEvent;
 use Illuminate\Contracts\Debug\ExceptionHandler;
 use Illuminate\Events\CallQueuedListener;
@@ -65,16 +66,22 @@ class SidecarPhpServiceProvider extends ServiceProvider
 
     protected function registerLambdaQueueWorker(): self
     {
-        $worker = $this->app->make('queue.worker');
-        $isLambaQueueWorkerTurnedOff = ! config('sidecar.queue.enabled', false);
+        $laravelWorker = $this->app->make('queue.worker');
+        $sidecarWorker = new LaravelLambdaWorker(
+            $this->invade($laravelWorker, fn () => $this->manager),
+            $this->invade($laravelWorker, fn () => $this->events),
+            $this->invade($laravelWorker, fn () => $this->exceptions),
+            $this->invade($laravelWorker, fn () => $this->isDownForMaintenance),
+            $this->invade($laravelWorker, fn () => $this->resetScope),
+        );
 
-        $this->app->singleton('queue.worker', fn ($app) => $isLambaQueueWorkerTurnedOff ? $worker : new LaravelLambdaWorker(
-            $this->invade($worker, fn () => $this->manager),
-            $this->invade($worker, fn () => $this->events),
-            $this->invade($worker, fn () => $this->exceptions),
-            $this->invade($worker, fn () => $this->isDownForMaintenance),
-            $this->invade($worker, fn () => $this->resetScope),
-        ));
+        $this->app->instance('queue.worker.sidecar', $sidecarWorker);
+        $this->app->instance('queue.worker.laravel', $laravelWorker);
+
+        $this->app->bind('queue.worker', fn () => SidecarConfig::make()->shouldBindSidecarQueueWorker()
+            ? $this->app->make('queue.worker.sidecar')
+            : $this->app->make('queue.worker.laravel')
+        );
 
         return $this;
     }
