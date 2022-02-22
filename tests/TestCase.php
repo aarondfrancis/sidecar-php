@@ -5,6 +5,8 @@
 
 namespace Hammerstone\Sidecar\PHP\Tests;
 
+use Hammerstone\Sidecar\Deployment;
+use Hammerstone\Sidecar\PHP\LaravelLambda;
 use Hammerstone\Sidecar\PHP\Providers\SidecarPhpServiceProvider;
 use Hammerstone\Sidecar\PHP\Tests\Support\App\Providers\EventServiceProvider;
 use Hammerstone\Sidecar\PHP\Tests\Support\QueueTestHelper;
@@ -18,6 +20,8 @@ use Orchestra\Testbench\TestCase as BaseTestCase;
 abstract class TestCase extends BaseTestCase
 {
     use RefreshDatabase;
+
+    static $deployed = false;
 
     protected function setUp(): void
     {
@@ -64,6 +68,13 @@ abstract class TestCase extends BaseTestCase
         $app->useEnvironmentPath($directory);
         $app->make(LoadEnvironmentVariables::class)->bootstrap($app);
         $app->make(LoadConfiguration::class)->bootstrap($app);
+
+        config(['sidecar.functions' => [LaravelLambda::class]]);
+        (new SidecarServiceProvider($app))->register();
+        if (static::$deployed === false) {
+            static::$deployed = true;
+            Deployment::make()->deploy()->activate(true);
+        }
 
         return $this;
     }

@@ -2,6 +2,7 @@
 
 namespace Hammerstone\Sidecar\PHP\Tests\Unit;
 
+use Hammerstone\Sidecar\LambdaFunction;
 use Hammerstone\Sidecar\PHP\Queue\LaravelLambdaWorker;
 use Hammerstone\Sidecar\PHP\Tests\Support\QueueTestHelper;
 use Hammerstone\Sidecar\PHP\Tests\Support\SidecarTestHelper;
@@ -87,7 +88,7 @@ test('when the lambda flags its job as not deleted then the job is not deleted',
     // GIVEN: a queued job that will run on lambda and not delete and not release
     SidecarTestHelper::record()
         ->enableQueueFeature(optin: false, queues: '*')
-        ->transform(function (array $body) {
+        ->transform(LambdaFunction::class, function (array $body) {
             // Why are we using releasing examples? Because the worker should be managing the queue, not the lambda, therefore the worker will receive these returned values.
             expect($body['deleted'])->toBe(true);
             expect($body['released'])->toBe(true);
@@ -125,7 +126,7 @@ test('when the lambda flags its job as not deleted then the job is not deleted',
     // GIVEN: a queued job that will run on lambda and not delete, but this time it will release (which is not normal but, hey)
     SidecarTestHelper::record()
         ->enableQueueFeature(optin: false, queues: '*')
-        ->transform(function (array $body) {
+        ->transform(LambdaFunction::class, function (array $body) {
             // Don't worry, this doesn't happen, we're asserting on seperate responsibilities is all. Also, the lambda should not be managing the queue.
             expect($body['deleted'])->toBe(true);
             expect($body['released'])->toBe(true);
@@ -175,12 +176,14 @@ test('when the lambda flags its job as released then the job is released', funct
 })->with('jobs where each will release');
 
 test('when the lambda flags its job as not released then the job is not released', function (QueueTestHelper $pendingJob) {
-    SidecarTestHelper::record()->enableQueueFeature(optin: false, queues: '*')->transform(function (array $body) {
-        // Why are we using releasing examples? Because the worker should be managing the queue, not the lambda, therefore the worker will receive these returned values.
-        expect($body['deleted'])->toBe(true);
-        expect($body['released'])->toBe(true);
-        return [...$body, 'released' => false];
-    });
+    SidecarTestHelper::record()
+        ->enableQueueFeature(optin: false, queues: '*')
+        ->transform(LambdaFunction::class, function (array $body) {
+            // Why are we using releasing examples? Because the worker should be managing the queue, not the lambda, therefore the worker will receive these returned values.
+            expect($body['deleted'])->toBe(true);
+            expect($body['released'])->toBe(true);
+            return [...$body, 'released' => false];
+        });
     $pendingJob->onQueue('lambda')->dispatch();
     $pendingJob->assertQueued();
 
@@ -200,11 +203,13 @@ test('when the lambda flags its job as not released then the job is not released
 })->with('jobs where each will release');
 
 test('when the lambda flags its job as released with a custom delay then the job is released with the same custom delay', function (QueueTestHelper $pendingJob) {
-    SidecarTestHelper::record()->enableQueueFeature(optin: false, queues: '*')->transform(function (array $body) {
-        // Why are we changing the delay? Because the worker should be managing the queue, not the lambda, therefore the worker will receive these returned values.
-        expect($body['delay'])->toBe(10);
-        return [...$body, 'delay' => 27];
-    });
+    SidecarTestHelper::record()
+        ->enableQueueFeature(optin: false, queues: '*')
+        ->transform(LambdaFunction::class, function (array $body) {
+            // Why are we changing the delay? Because the worker should be managing the queue, not the lambda, therefore the worker will receive these returned values.
+            expect($body['delay'])->toBe(10);
+            return [...$body, 'delay' => 27];
+        });
     $pendingJob->onQueue('lambda')->dispatch();
     $pendingJob->assertQueued();
 

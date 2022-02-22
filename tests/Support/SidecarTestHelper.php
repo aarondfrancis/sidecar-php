@@ -3,6 +3,7 @@
 namespace Hammerstone\Sidecar\PHP\Tests\Support;
 
 use Closure;
+use Hammerstone\Sidecar\Events\AfterFunctionExecuted;
 use Hammerstone\Sidecar\PHP\Support\Config\SidecarConfig;
 
 class SidecarTestHelper extends SidecarConfig
@@ -19,9 +20,22 @@ class SidecarTestHelper extends SidecarConfig
         }
 
         static::$recording = true;
-        // Will register listeners to allow for assertions if not done already.
-        // First run transformers, then run onSettled.
-        // Need to track executed lambdas.
+
+        app('events')->listen(AfterFunctionExecuted::class, function (AfterFunctionExecuted $event) {
+            $body = $event->result->body();
+            $lambda = $event->function::class;
+            $result = $event->result->rawAwsResult();
+
+            foreach (static::$transformers[$lambda] ?? [] as $transformer) {
+                $result['Payload'] = json_encode($transformer($body));
+            }
+
+            foreach (static::$settledHooks[$lambda] ?? [] as $onSettled) {
+                $onSettled($body);
+            }
+
+            static::$executions[$lambda][] = $event;
+        });
     }
 
     public static function record(): self
@@ -50,16 +64,16 @@ class SidecarTestHelper extends SidecarConfig
         return $this;
     }
 
-    public function transform(Closure $callback): self
+    public function transform(string $lambda, Closure $callback): self
     {
-        static::$transformers[] = $callback;
+        static::$transformers[$lambda] = $callback;
 
         return $this;
     }
 
-    public function onSettled(Closure $callback): self
+    public function onSettled(string $lambda, Closure $callback): self
     {
-        static::$settledHooks[] = $callback;
+        static::$settledHooks[$lambda] = $callback;
 
         return $this;
     }

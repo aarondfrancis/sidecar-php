@@ -78,7 +78,7 @@ class QueueTestHelper extends Decorator
             '--stop-when-empty' => true,
             '--queue' => $this->getNamespacedQueueName(),
             $this->queue()->getConnectionName(),
-        ]);
+        ])->execute();
 
         return $this;
     }
