@@ -2,6 +2,7 @@
 
 namespace Hammerstone\Sidecar\PHP\Queue;
 
+use Closure;
 use Hammerstone\Sidecar\PHP\LaravelLambda;
 use Hammerstone\Sidecar\PHP\Support\Decorator;
 use Illuminate\Queue\Jobs\JobName;
@@ -9,6 +10,8 @@ use Illuminate\Queue\Jobs\SyncJob;
 use Illuminate\Queue\Worker;
 use Illuminate\Queue\WorkerOptions;
 use Illuminate\Support\Arr;
+use ReflectionClass;
+use ReflectionFunction;
 use Throwable;
 
 class LaravelLambdaWorker extends Worker
@@ -44,41 +47,93 @@ class LaravelLambdaWorker extends Worker
                     $connectionName = $this->connectionName;
                     $this->instance = $this->resolve($class);
 
+                    $payload['id'] ??= $this->getJobId();
+                    $payload['attempts'] ??= $this->attempts();
+                    $payload['maxTries'] ??= $this->maxTries();
+                    $payload['maxExceptions'] ??= $this->maxExceptions();
+                    $payload['backoff'] ??= $this->backoff();
+                    $payload['timeout'] ??= $this->timeout();
+                    $payload['retryUntil'] ??= $this->retryUntil();
+                    $payload['failOnTimeout'] ??= $this->shouldFailOnTimeout();
+
                     $result = LaravelLambda::execute(function () use ($class, $method, $data, $queue, $payload, $connectionName) {
+                        $exception = null;
                         $container = app();
-                        $job = new class ($container, $payload, $connectionName, $queue) extends SyncJob {
+                        $rawPayload = json_encode($payload);
+                        $job = new class($container, $rawPayload, $connectionName, $queue) extends SyncJob {
                             public $delay = 0;
 
                             public function release($delay = 0)
                             {
                                 parent::release($this->delay = $delay);
                             }
-                        };
-                        // TODO: set drivers to collect dispatches, failed jobs, and logs for the response.
 
-                        $container->make($class)->{$method}($job, $data);
+                            public function attempts()
+                            {
+                                return $this->payload()['attempts'] ?? 1;
+                            }
+
+                            public function getJobId()
+                            {
+                                return $this->payload()['id'] ?? null;
+                            }
+                        };
+                        // TODO: set drivers to collect dispatches and logs for the response.
+
+                        try {
+                            $container->make($class)->{$method}($job, $data);
+                        } catch (Throwable $error) {
+                            $cursor = $error;
+                            $prop = tap((new ReflectionClass($error::class))->getProperty('trace'))->setAccessible(true);
+                            do {
+                                $trace = $prop->getValue($cursor);
+                                foreach ($trace as &$call) {
+                                    array_walk_recursive($call['args'], function (&$value, $key) {
+                                        if ($value instanceof Closure) {
+                                            $reflection = new ReflectionFunction($value);
+                                            $value = sprintf('Closure(%s:%s)', $reflection->getFileName(), $reflection->getStartLine());
+                                        } elseif (is_object($value)) {
+                                            $value = sprintf('Object(%s)', get_class($value));
+                                        } elseif (is_resource($value)) {
+                                            $value = sprintf('Resource(%s)', get_resource_type($value));
+                                        }
+                                    });
+                                }
+                                $prop->setValue($cursor, $trace);
+                            } while ($cursor = $cursor->getPrevious());
+                            $prop->setAccessible(false);
+                            $exception = $error;
+                        }
 
                         return [
-                            'deleted' => $job->isDeleted(),
+                            'failed' => $job->hasFailed(),
+                            'exception' => serialize($exception),
                             'released' => $job->isReleased(),
                             'delay' => (int) $job->delay,
-                            // TODO: jobs to dispatch. Note that deleted and released did not dispatch anything.
-                            // TODO: failed jobs to add, might be worth having this execute locally to check that failed jobs are done by the queue manager?
+                            // TODO: jobs to dispatch. Note that release() did not dispatch anything.
                             // TODO: logs to log. This should be done by the queue manager because a Forge box likely would have a log file vs. cloudwatch logs.
                         ];
                     })->throw()->body();
 
-                    if ($result['deleted']) {
-                        $this->delete();
+                    $exception = unserialize($result['exception']);
+
+                    // Pushes to failed_jobs and deletes the current job.
+                    if ($result['failed']) {
+                        return $this->fail($exception);
                     }
 
+                    // Worker will release for retry, or mark as failed for reaching either max attempts or max exceptions.
+                    if ($exception) {
+                        throw $exception;
+                    }
+
+                    // Dispatches the job for another attempt and deletes the current job.
                     if ($result['released']) {
-                        $this->release($result['delay']);
+                        return $this->release($result['delay']);
                     }
 
-                    // TODO: dispatch the returned jobs
-                    // TODO: log the returned failed jobs
-                    // TODO: log the returned logs
+                    // Deletes the current job.
+                    $this->delete();
                 });
             }
         };

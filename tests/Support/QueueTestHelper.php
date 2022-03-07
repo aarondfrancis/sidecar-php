@@ -3,30 +3,39 @@
 namespace Hammerstone\Sidecar\PHP\Tests\Support;
 
 use Closure;
+use Exception;
 use Hammerstone\Sidecar\PHP\LaravelLambda;
 use Hammerstone\Sidecar\PHP\Support\Config\SidecarConfig;
 use Hammerstone\Sidecar\PHP\Support\Decorator;
+use Illuminate\Contracts\Queue\Job;
 use Illuminate\Contracts\Queue\Queue as QueueContract;
+use Illuminate\Queue\DatabaseQueue;
+use Illuminate\Queue\Events\JobFailed;
 use Illuminate\Queue\Failed\FailedJobProviderInterface;
-use Illuminate\Support\Facades\DB;
+use Illuminate\Queue\Jobs\DatabaseJob;
+use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Str;
 
 class QueueTestHelper extends Decorator
 {
-    public string $id; // debugging
-    public $job; // or $queueable?
+    public $job;
     private Closure $dispatcher;
     private QueueContract $queue;
+    private ?Job $failedJob = null;
+    private ?Job $releasedJob = null;
     private static array $queueNames = [];
 
     public function __construct($job, ?Closure $dispatcher = null)
     {
         SidecarConfig::make()->queueDriverSupported();
 
-        $this->id = Str::uuid(); // debugging
         $this->job = $job;
         $this->dispatcher = $dispatcher ?? fn ($job) => dispatch($job);
+
+        app('events')->listen(JobFailed::class, function (JobFailed $event) {
+            $this->failedJob = $event->job;
+        });
 
         parent::__construct($this->job);
     }
@@ -47,7 +56,6 @@ class QueueTestHelper extends Decorator
 
     public function with(array $payload)
     {
-        // add callback to merge into payload.
         $this->queue()->createPayloadUsing(fn () => $payload);
 
         return $this;
@@ -66,7 +74,7 @@ class QueueTestHelper extends Decorator
     {
         $dispatcher = $this->dispatcher;
 
-        $queue = static::$queueNames[] = $this->getNamespacedQueueName();
+        $queue = static::$queueNames[] = $this->getQueueName();
 
         return $dispatcher((clone $this->job)->onQueue($queue));
     }
@@ -76,7 +84,7 @@ class QueueTestHelper extends Decorator
         test()->artisan('queue:work', [
             '--once' => true,
             '--stop-when-empty' => true,
-            '--queue' => $this->getNamespacedQueueName(),
+            '--queue' => $this->getQueueName(),
             $this->queue()->getConnectionName(),
         ])->execute();
 
@@ -88,12 +96,11 @@ class QueueTestHelper extends Decorator
         return $this->job->queue ?? 'default';
     }
 
-    public function getNamespacedQueueName(): string
+    public function clearQueue(): self
     {
-        // debugging
-        return false
-            ? sprintf('%s:%s(%s)', $this->getQueueName(), (new \ReflectionClass($this->job))->getShortName(), $this->id)
-            : $this->getQueueName();
+        $this->queue()->clear($this->getQueueName());
+
+        return $this;
     }
 
     public function assertFailed(int $times = 1): self
@@ -124,28 +131,65 @@ class QueueTestHelper extends Decorator
 
     public function assertDeleted(): self
     {
-        expect($this->countQueuedJobs() === 0 || $this->releasedJob() !== null)->toBe(true);
+        expect($this->countQueuedJobs() === 0)->toBe(true);
 
         return $this;
     }
 
     public function assertNotDeleted(): self
     {
-        expect($this->countQueuedJobs() === 0 || $this->releasedJob() !== null)->toBe(false);
+        expect($this->countQueuedJobs() === 0)->toBe(false);
 
         return $this;
     }
 
     public function assertReleased(): self
     {
-        expect($this->releasedJob() === null)->toBe(false);
+        expect($this->releasedJobRecord() === null)->toBe(false);
 
         return $this;
     }
 
     public function assertNotReleased(): self
     {
-        expect($this->releasedJob() === null)->toBe(true);
+        expect($this->releasedJobRecord() === null)->toBe(true);
+
+        return $this;
+    }
+
+    public function assertDelayed(int $seconds): self
+    {
+        expect(optional($this->releasedJobRecord())->available_at - optional($this->releasedJobRecord())->created_at)->toBe($seconds);
+
+        return $this;
+    }
+
+    public function assertNotDelayed(): self
+    {
+        return $this->assertDelayed(0);
+    }
+
+    public function assertTries(int $tries): self
+    {
+        expect(optional($this->failedJob())->attempts() ?? optional($this->releasedJobRecord())->attempts + 1)->toBe($tries);
+
+        return $this;
+    }
+
+    public function assertMaxTries(int $limit): self
+    {
+        expect(optional($this->failedJob())->maxTries() ?? json_decode(optional($this->releasedJobRecord())->payload ?? '{}')->maxTries ?? 1)->toBe($limit);
+
+        return $this;
+    }
+
+    public function assertTriesRemaining(int $remainingAttempts): self
+    {
+        $tries = optional($this->failedJob())->attempts() ?? optional($this->releasedJobRecord())->attempts;
+        $maxTries = optional($this->failedJob())->maxTries() ?? json_decode(optional($this->releasedJobRecord())->payload ?? '{}')->maxTries ?? 1;
+        $remaining = $maxTries - $tries - 1;
+
+        expect($remaining < 0 ? 0 : $remaining)->toBe($remainingAttempts);
 
         return $this;
     }
@@ -164,13 +208,23 @@ class QueueTestHelper extends Decorator
 
     private function countQueuedJobs(): int
     {
-        return $this->queue()->size($this->getNamespacedQueueName());
+        return $this->queue()->size($this->getQueueName());
     }
 
-    private function releasedJob(): ?self
+    private function failedJob(): ?Job
     {
-        // TODO: pop+push; return new instance if tries are different else null.
+        return $this->failedJob;
+    }
 
-        return null;
+    private function releasedJobRecord()
+    {
+        throw_unless($this->queue() instanceof DatabaseQueue, new Exception(
+            'Can only assert released job on a database queue for now.'
+        ));
+
+        return $this->queue()
+            ->getDatabase()
+            ->table(config('queue.connections.database.table', 'jobs'))
+            ->first();
     }
 }

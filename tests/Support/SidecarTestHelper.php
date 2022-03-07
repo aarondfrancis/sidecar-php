@@ -53,20 +53,14 @@ class SidecarTestHelper extends SidecarConfig
     public static function reset(): void
     {
         static::$recording = false;
+        static::$executions = [];
         static::$transformers = [];
         static::$settledHooks = [];
     }
 
-    public function mock(array $result): self
-    {
-        // it should mock \Illuminate\Support\Facades\Http so \Hammerstone\Sidecar\LambdaFunction is essentially a mock.
-
-        return $this;
-    }
-
     public function transform(string $lambda, Closure $callback): self
     {
-        static::$transformers[$lambda] = $callback;
+        static::$transformers[$lambda][] = $callback;
 
         return $this;
     }
@@ -80,9 +74,9 @@ class SidecarTestHelper extends SidecarConfig
 
     public function assertWasExecuted(int $times, string $lambda, ?Closure $filter = null): self
     {
-        $executions = collect(static::$executions[$lambda] ?? [])->when(
+        $executions = collect(static::$executions[$lambda] ?? [])->map->result->when(
             $filter !== null,
-            fn ($executions) => $executions->filter($filter),
+            fn ($executions) => $executions->filter(fn ($value, $key) => $filter($value, $key) ?? true),
         );
 
         expect($executions->count())->toBe($times);
