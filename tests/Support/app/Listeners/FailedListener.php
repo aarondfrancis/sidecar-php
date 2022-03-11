@@ -2,15 +2,17 @@
 
 namespace Hammerstone\Sidecar\PHP\Tests\Support\App\Listeners;
 
-use Hammerstone\Sidecar\PHP\Tests\Support\App\Events\PassingEvent;
+use Exception;
+use Hammerstone\Sidecar\PHP\Tests\Support\App\Events\FailedEvent;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Queue\InteractsWithQueue;
 
-class PassingListener implements ShouldQueue
+class FailedListener implements ShouldQueue
 {
     use InteractsWithQueue;
 
-    public function handle(PassingEvent $event)
+    public function handle(FailedEvent $event)
     {
+        $this->fail();
     }
 }

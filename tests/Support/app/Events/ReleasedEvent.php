@@ -7,11 +7,7 @@ use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Events\Dispatchable;
 use Illuminate\Queue\SerializesModels;
 
-class AttemptsReachedEvent implements ShouldQueue
+class ReleasedEvent implements ShouldQueue
 {
     use Dispatchable, InteractsWithSockets, SerializesModels;
-
-    public function handle()
-    {
-    }
 }

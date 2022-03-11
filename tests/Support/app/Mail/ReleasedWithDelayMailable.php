@@ -6,14 +6,15 @@ use Hammerstone\Sidecar\PHP\Contracts\Queue\RunInLambda;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Mail\Mailable;
+use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Queue\SerializesModels;
 
-class ReleasingMailable extends Mailable implements ShouldQueue, RunInLambda
+class ReleasedWithDelayMailable extends Mailable implements ShouldQueue, RunInLambda
 {
-    use Queueable, SerializesModels;
+    use InteractsWithQueue, Queueable, SerializesModels;
 
     public function build()
     {
-        return $this->view('email', ['content' => 'My name is Rod, and I like to party.']);
+        return $this->view('email', ['content' => "No, Kevin, I know, for a fact, you don't party."]);
     }
 }

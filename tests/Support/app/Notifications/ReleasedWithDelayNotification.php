@@ -2,13 +2,13 @@
 
 namespace Hammerstone\Sidecar\PHP\Tests\Support\App\Notifications;
 
-use Facades\Hammerstone\Sidecar\PHP\Tests\Support\App\Mail\AttemptsReachedMailable;
+use Facades\Hammerstone\Sidecar\PHP\Tests\Support\App\Mail\ReleasingWithDelayMailable;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Notifications\Messages\MailMessage;
 use Illuminate\Notifications\Notification;
 
-class AttemptsReachedNotification extends Notification implements ShouldQueue
+class ReleasedWithDelayNotification extends Notification implements ShouldQueue
 {
     use Queueable;
 
@@ -19,6 +19,6 @@ class AttemptsReachedNotification extends Notification implements ShouldQueue
 
     public function toMail($notifiable)
     {
-        return AttemptsReachedMailable::to($notifiable?->routes['mail'] ?? $notifiable?->email ?? $notifiable?->email);
+        return ReleasingWithDelayMailable::to($notifiable?->routes['mail'] ?? $notifiable?->email ?? $notifiable?->email);
     }
 }

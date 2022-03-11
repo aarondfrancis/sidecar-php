@@ -11,8 +11,4 @@ use Illuminate\Queue\SerializesModels;
 class ImplementsDoNotRunInLambdaEvent implements ShouldQueue, DoNotRunInLambda
 {
     use Dispatchable, InteractsWithSockets, SerializesModels;
-
-    public function handle()
-    {
-    }
 }

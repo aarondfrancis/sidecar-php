@@ -2,18 +2,18 @@
 
 namespace Hammerstone\Sidecar\PHP\Tests\Support\App\Mail;
 
-use Exception;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Mail\Mailable;
+use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Queue\SerializesModels;
 
-class FailingMailable extends Mailable implements ShouldQueue
+class PassedMailable extends Mailable implements ShouldQueue
 {
-    use Queueable, SerializesModels;
+    use InteractsWithQueue, Queueable, SerializesModels;
 
     public function build()
     {
-        throw new Exception("I'm just kidding. I could hear you. It was just really mean.");
+        return $this->view('email', ['content' => 'Cool beans.']);
     }
 }

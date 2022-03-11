@@ -7,12 +7,7 @@ use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Events\Dispatchable;
 use Illuminate\Queue\SerializesModels;
 
-class ReleasingWithDelayEvent implements ShouldQueue
+class ReleasedWithDelayEvent implements ShouldQueue
 {
     use Dispatchable, InteractsWithSockets, SerializesModels;
-
-    public function handle()
-    {
-        $this->release(10);
-    }
 }

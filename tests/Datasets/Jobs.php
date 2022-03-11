@@ -3,136 +3,123 @@
 namespace Hammerstone\Sidecar\PHP\Tests\Datasets;
 
 use Facades\Hammerstone\Sidecar\PHP\Tests\Support\App\PayService\Pay;
-use Facades\Hammerstone\Sidecar\PHP\Tests\Support\App\PayService\PayAttemptsReached;
-use Facades\Hammerstone\Sidecar\PHP\Tests\Support\App\PayService\PayReleasing;
-use Facades\Hammerstone\Sidecar\PHP\Tests\Support\App\PayService\PayReleasingWithDelay;
+use Facades\Hammerstone\Sidecar\PHP\Tests\Support\App\PayService\PayReleased;
+use Facades\Hammerstone\Sidecar\PHP\Tests\Support\App\PayService\PayReleasedWithDelay;
 use Facades\Illuminate\Mail\PendingMail;
-use Hammerstone\Sidecar\PHP\Tests\Support\App\Events\AttemptsReachedEvent;
-use Hammerstone\Sidecar\PHP\Tests\Support\App\Events\FailingEvent;
+use Hammerstone\Sidecar\PHP\Tests\Support\App\Events\FailedEvent;
 use Hammerstone\Sidecar\PHP\Tests\Support\App\Events\ImplementsBothRunInLambdaAndDoNotRunInLambdaEvent;
 use Hammerstone\Sidecar\PHP\Tests\Support\App\Events\ImplementsDoNotRunInLambdaEvent;
 use Hammerstone\Sidecar\PHP\Tests\Support\App\Events\ImplementsRunInLambdaEvent;
-use Hammerstone\Sidecar\PHP\Tests\Support\App\Events\PassingEvent;
-use Hammerstone\Sidecar\PHP\Tests\Support\App\Events\ReleasingEvent;
-use Hammerstone\Sidecar\PHP\Tests\Support\App\Events\ReleasingWithDelayEvent;
-use Hammerstone\Sidecar\PHP\Tests\Support\App\Jobs\AttemptsReachedJob;
-use Hammerstone\Sidecar\PHP\Tests\Support\App\Jobs\FailingJob;
+use Hammerstone\Sidecar\PHP\Tests\Support\App\Events\PassedEvent;
+use Hammerstone\Sidecar\PHP\Tests\Support\App\Events\ReleasedEvent;
+use Hammerstone\Sidecar\PHP\Tests\Support\App\Events\ReleasedWithDelayEvent;
+use Hammerstone\Sidecar\PHP\Tests\Support\App\Events\ThrownEvent;
+use Hammerstone\Sidecar\PHP\Tests\Support\App\Jobs\FailedJob;
 use Hammerstone\Sidecar\PHP\Tests\Support\App\Jobs\ImplementsBothRunInLambdaAndDoNotRunInLambdaJob;
 use Hammerstone\Sidecar\PHP\Tests\Support\App\Jobs\ImplementsDoNotRunInLambdaJob;
 use Hammerstone\Sidecar\PHP\Tests\Support\App\Jobs\ImplementsRunInLambdaJob;
-use Hammerstone\Sidecar\PHP\Tests\Support\App\Jobs\PassingJob;
-use Hammerstone\Sidecar\PHP\Tests\Support\App\Jobs\ReleasingJob;
-use Hammerstone\Sidecar\PHP\Tests\Support\App\Jobs\ReleasingWithDelayJob;
-use Hammerstone\Sidecar\PHP\Tests\Support\App\Listeners\AttemptsReachedListener;
-use Hammerstone\Sidecar\PHP\Tests\Support\App\Listeners\FailingListener;
+use Hammerstone\Sidecar\PHP\Tests\Support\App\Jobs\PassedJob;
+use Hammerstone\Sidecar\PHP\Tests\Support\App\Jobs\ReleasedJob;
+use Hammerstone\Sidecar\PHP\Tests\Support\App\Jobs\ReleasedWithDelayJob;
+use Hammerstone\Sidecar\PHP\Tests\Support\App\Jobs\ThrownJob;
+use Hammerstone\Sidecar\PHP\Tests\Support\App\Listeners\FailedListener;
 use Hammerstone\Sidecar\PHP\Tests\Support\App\Listeners\ImplementsBothRunInLambdaAndDoNotRunInLambdaListener;
 use Hammerstone\Sidecar\PHP\Tests\Support\App\Listeners\ImplementsDoNotRunInLambdaListener;
 use Hammerstone\Sidecar\PHP\Tests\Support\App\Listeners\ImplementsRunInLambdaListener;
-use Hammerstone\Sidecar\PHP\Tests\Support\App\Listeners\PassingListener;
-use Hammerstone\Sidecar\PHP\Tests\Support\App\Listeners\ReleasingListener;
-use Hammerstone\Sidecar\PHP\Tests\Support\App\Listeners\ReleasingWithDelayListener;
-use Hammerstone\Sidecar\PHP\Tests\Support\App\Mail\AttemptsReachedMailable;
-use Hammerstone\Sidecar\PHP\Tests\Support\App\Mail\FailingMailable;
+use Hammerstone\Sidecar\PHP\Tests\Support\App\Listeners\PassedListener;
+use Hammerstone\Sidecar\PHP\Tests\Support\App\Listeners\ReleasedListener;
+use Hammerstone\Sidecar\PHP\Tests\Support\App\Listeners\ReleasedWithDelayListener;
+use Hammerstone\Sidecar\PHP\Tests\Support\App\Listeners\ThrownListener;
 use Hammerstone\Sidecar\PHP\Tests\Support\App\Mail\ImplementsBothRunInLambdaAndDoNotRunInLambdaMailable;
 use Hammerstone\Sidecar\PHP\Tests\Support\App\Mail\ImplementsDoNotRunInLambdaMailable;
 use Hammerstone\Sidecar\PHP\Tests\Support\App\Mail\ImplementsRunInLambdaMailable;
-use Hammerstone\Sidecar\PHP\Tests\Support\App\Mail\PassingMailable;
-use Hammerstone\Sidecar\PHP\Tests\Support\App\Mail\ReleasingMailable;
-use Hammerstone\Sidecar\PHP\Tests\Support\App\Mail\ReleasingWithDelayMailable;
-use Hammerstone\Sidecar\PHP\Tests\Support\App\Notifications\AttemptsReachedNotification;
-use Hammerstone\Sidecar\PHP\Tests\Support\App\Notifications\FailingNotification;
+use Hammerstone\Sidecar\PHP\Tests\Support\App\Mail\PassedMailable;
+use Hammerstone\Sidecar\PHP\Tests\Support\App\Mail\ReleasedMailable;
+use Hammerstone\Sidecar\PHP\Tests\Support\App\Mail\ReleasedWithDelayMailable;
+use Hammerstone\Sidecar\PHP\Tests\Support\App\Mail\ThrownMailable;
 use Hammerstone\Sidecar\PHP\Tests\Support\App\Notifications\ImplementsBothRunInLambdaAndDoNotRunInLambdaNotification;
 use Hammerstone\Sidecar\PHP\Tests\Support\App\Notifications\ImplementsDoNotRunInLambdaNotification;
 use Hammerstone\Sidecar\PHP\Tests\Support\App\Notifications\ImplementsRunInLambdaNotification;
-use Hammerstone\Sidecar\PHP\Tests\Support\App\Notifications\PassingNotification;
-use Hammerstone\Sidecar\PHP\Tests\Support\App\Notifications\ReleasingNotification;
-use Hammerstone\Sidecar\PHP\Tests\Support\App\Notifications\ReleasingWithDelayNotification;
-use Hammerstone\Sidecar\PHP\Tests\Support\App\PayService\Payables\FailingPayable;
+use Hammerstone\Sidecar\PHP\Tests\Support\App\Notifications\PassedNotification;
+use Hammerstone\Sidecar\PHP\Tests\Support\App\Notifications\ReleasedNotification;
+use Hammerstone\Sidecar\PHP\Tests\Support\App\Notifications\ReleasedWithDelayNotification;
+use Hammerstone\Sidecar\PHP\Tests\Support\App\Notifications\ThrownNotification;
 use Hammerstone\Sidecar\PHP\Tests\Support\App\PayService\Payables\ImplementsBothRunInLambdaAndDoNotRunInLambdaPayable;
 use Hammerstone\Sidecar\PHP\Tests\Support\App\PayService\Payables\ImplementsDoNotRunInLambdaPayable;
 use Hammerstone\Sidecar\PHP\Tests\Support\App\PayService\Payables\ImplementsRunInLambdaPayable;
-use Hammerstone\Sidecar\PHP\Tests\Support\App\PayService\Payables\PassingPayable;
+use Hammerstone\Sidecar\PHP\Tests\Support\App\PayService\Payables\PassedPayable;
+use Hammerstone\Sidecar\PHP\Tests\Support\App\PayService\Payables\ThrownPayable;
 use Hammerstone\Sidecar\PHP\Tests\Support\QueueTestHelper;
 use Illuminate\Contracts\Queue\Queue;
 use Illuminate\Support\Facades\Notification;
 
-$succeeds = [
-    'job' => fn () => new QueueTestHelper(new PassingJob, fn ($queueable) => dispatch($queueable), false),
-    // 'event' => fn () => new QueueTestHelper(new PassingEvent, fn ($queueable) => dispatch($queueable), false),
-    // 'listener' => fn () => new QueueTestHelper(new PassingListener, fn ($queueable) => dispatch($queueable), false),
-    'mailable' => fn () => new QueueTestHelper((new PassingMailable)->to('example@email.com'), fn ($queueable) => PendingMail::queue($queueable), false),
-    'notification' => fn () => new QueueTestHelper(new PassingNotification, fn ($queueable) => Notification::route('mail', 'example@email.com')->notify($queueable), false),
+$passed = [
+    'job' => fn () => new QueueTestHelper(new PassedJob, fn ($queueable) => dispatch($queueable), false),
+    // 'event' => fn () => new QueueTestHelper(new PassedEvent, fn ($queueable) => dispatch($queueable), false),
+    // 'listener' => fn () => new QueueTestHelper(new PassedListener, fn ($queueable) => dispatch($queueable), false),
+    'mailable' => fn () => new QueueTestHelper((new PassedMailable)->to('example@email.com'), fn ($queueable) => PendingMail::queue($queueable), false),
+    'notification' => fn () => new QueueTestHelper(new PassedNotification, fn ($queueable) => Notification::route('mail', 'example@email.com')->notify($queueable), false),
     'custom service with method getter configured' => function () {
         config(['sidecar.queue.job_getters' => [Pay::class => 'getPayable']]);
-        return new QueueTestHelper(new PassingPayable, fn ($queueable) => Pay::queue($queueable), false);
+        return new QueueTestHelper(new PassedPayable, fn ($queueable) => Pay::queue($queueable), false);
     },
     'custom service with attribute getter configured' => function () {
         config(['sidecar.queue.job_getters' => [Pay::class => 'payable']]);
-        return new QueueTestHelper(new PassingPayable, fn ($queueable) => Pay::queue($queueable), false);
+        return new QueueTestHelper(new PassedPayable, fn ($queueable) => Pay::queue($queueable), false);
     },
 ];
 
-$fails = [
-    'failing job' => fn () => new QueueTestHelper(new FailingJob, fn ($queueable) => dispatch($queueable), false),
-    // 'failing event' => fn () => new QueueTestHelper(new FailingEvent, fn ($queueable) => dispatch($queueable), false),
-    // 'failing listener' => fn () => new QueueTestHelper(new FailingListener, fn ($queueable) => dispatch($queueable), false),
-    'failing mailable' => fn () => new QueueTestHelper((new FailingMailable)->to('example@email.com'), fn ($queueable) => PendingMail::queue($queueable), false),
-    'failing notification' => fn () => new QueueTestHelper(new FailingNotification, fn ($queueable) => Notification::route('mail', 'example@email.com')->notify($queueable), false),
-    'failing custom service with method getter configured' => function () {
+$failed = [
+    'failed job' => fn () => new QueueTestHelper(new FailedJob, fn ($queueable) => dispatch($queueable), false),
+    // 'failed event' => fn () => new QueueTestHelper(new FailedEvent, fn ($queueable) => dispatch($queueable), false),
+    // 'failed listener' => fn () => new QueueTestHelper(new FailedListener, fn ($queueable) => dispatch($queueable), false),
+];
+
+$thrown = [
+    'thrown job' => fn () => new QueueTestHelper(new ThrownJob, fn ($queueable) => dispatch($queueable), false),
+    // 'thrown event' => fn () => new QueueTestHelper(new ThrownEvent, fn ($queueable) => dispatch($queueable), false),
+    // 'thrown listener' => fn () => new QueueTestHelper(new ThrownListener, fn ($queueable) => dispatch($queueable), false),
+    'thrown mailable' => fn () => new QueueTestHelper((new ThrownMailable)->to('example@email.com'), fn ($queueable) => PendingMail::queue($queueable), false),
+    'thrown notification' => fn () => new QueueTestHelper(new ThrownNotification, fn ($queueable) => Notification::route('mail', 'example@email.com')->notify($queueable), false),
+    'thrown custom service with method getter configured' => function () {
         config(['sidecar.queue.job_getters' => [Pay::class => 'getPayable']]);
-        return new QueueTestHelper(new FailingPayable, fn ($queueable) => Pay::queue($queueable), false);
+        return new QueueTestHelper(new ThrownPayable, fn ($queueable) => Pay::queue($queueable), false);
     },
-    'failing custom service with attribute getter configured' => function () {
+    'thrown custom service with attribute getter configured' => function () {
         config(['sidecar.queue.job_getters' => [Pay::class => 'payable']]);
-        return new QueueTestHelper(new FailingPayable, fn ($queueable) => Pay::queue($queueable), false);
+        return new QueueTestHelper(new ThrownPayable, fn ($queueable) => Pay::queue($queueable), false);
     },
 ];
 
-$failsFromMaxAttempts = [
-    'failing from max attempts job' => fn () => new QueueTestHelper(new AttemptsReachedJob, fn ($queueable) => dispatch($queueable), false),
-    // 'failing from max attempts event' => fn () => new QueueTestHelper(new AttemptsReachedEvent, fn ($queueable) => dispatch($queueable), false),
-    // 'failing from max attempts listener' => fn () => new QueueTestHelper(new AttemptsReachedListener, fn ($queueable) => dispatch($queueable), false),
-    'failing from max attempts mailable' => fn () => new QueueTestHelper((new AttemptsReachedMailable)->to('example@email.com'), fn ($queueable) => PendingMail::queue($queueable), false),
-    'failing from max attempts notification' => fn () => new QueueTestHelper(new AttemptsReachedNotification, fn ($queueable) => Notification::route('mail', 'example@email.com')->notify($queueable), false),
-    'failing from max attempts custom service with method getter configured' => function () {
-        config(['sidecar.queue.job_getters' => [PayAttemptsReached::class => 'getPayable']]);
-        return new QueueTestHelper(new FailingPayable, fn ($queueable) => PayAttemptsReached::queue($queueable), false);
-    },
-    'failing from max attempts custom service with attribute getter configured' => function () {
-        config(['sidecar.queue.job_getters' => [PayAttemptsReached::class => 'payable']]);
-        return new QueueTestHelper(new FailingPayable, fn ($queueable) => PayAttemptsReached::queue($queueable), false);
-    },
-];
-
-$release = [
-    'releasing job' => fn () => new QueueTestHelper(new ReleasingJob, fn ($queueable) => dispatch($queueable), false),
-    // 'releasing event' => fn () => new QueueTestHelper(new ReleasingEvent, fn ($queueable) => dispatch($queueable), false),
-    // 'releasing listener' => fn () => new QueueTestHelper(new ReleasingListener, fn ($queueable) => dispatch($queueable), false),
-    // 'releasing mailable' => fn () => new QueueTestHelper((new ReleasingMailable)->to('example@email.com'), fn ($queueable) => PendingMail::queue($queueable), false),
-    // 'releasing notification' => fn () => new QueueTestHelper(new ReleasingNotification, fn ($queueable) => Notification::route('mail', 'example@email.com')->notify($queueable), false),
-    // 'releasing custom service with method getter configured' => function () {
+$released = [
+    'released job' => fn () => new QueueTestHelper(new ReleasedJob, fn ($queueable) => dispatch($queueable), false),
+    // 'released event' => fn () => new QueueTestHelper(new ReleasedEvent, fn ($queueable) => dispatch($queueable), false),
+    // 'released listener' => fn () => new QueueTestHelper(new ReleasedListener, fn ($queueable) => dispatch($queueable), false),
+    // 'released mailable' => fn () => new QueueTestHelper((new ReleasedMailable)->to('example@email.com'), fn ($queueable) => PendingMail::queue($queueable), false),
+    // 'released notification' => fn () => new QueueTestHelper(new ReleasedNotification, fn ($queueable) => Notification::route('mail', 'example@email.com')->notify($queueable), false),
+    // 'released custom service with method getter configured' => function () {
     //     config(['sidecar.queue.job_getters' => [Pay::class => 'getPayable']]);
-    //     return new QueueTestHelper(new PassingPayable, fn ($queueable) => PayReleasing::queue($queueable), false);
+    //     return new QueueTestHelper(new PassedPayable, fn ($queueable) => PayReleased::queue($queueable), false);
     // },
-    // 'releasing custom service with attribute getter configured' => function () {
-    //     config(['sidecar.queue.job_getters' => [PayReleasing::class => 'payable']]);
-    //     return new QueueTestHelper(new PassingPayable, fn ($queueable) => PayReleasing::queue($queueable), false);
+    // 'released custom service with attribute getter configured' => function () {
+    //     config(['sidecar.queue.job_getters' => [PayReleased::class => 'payable']]);
+    //     return new QueueTestHelper(new PassedPayable, fn ($queueable) => PayReleased::queue($queueable), false);
     // },
 ];
 
-$releaseWithDelay = [
-    'releasing with delay job' => fn () => new QueueTestHelper(new ReleasingWithDelayJob, fn ($queueable) => dispatch($queueable), false),
-    // 'releasing with delay event' => fn () => new QueueTestHelper(new ReleasingWithDelayEvent, fn ($queueable) => dispatch($queueable), false),
-    // 'releasing with delay listener' => fn () => new QueueTestHelper(new ReleasingWithDelayListener, fn ($queueable) => dispatch($queueable), false),
-    // 'releasing with delay mailable' => fn () => new QueueTestHelper((new ReleasingWithDelayMailable)->to('example@email.com'), fn ($queueable) => PendingMail::queue($queueable), false),
-    // 'releasing with delay notification' => fn () => new QueueTestHelper(new ReleasingWithDelayNotification, fn ($queueable) => Notification::route('mail', 'example@email.com')->notify($queueable), false),
-    // 'releasing with delay custom service with method getter configured' => function () {
-    //     config(['sidecar.queue.job_getters' => [PayReleasingWithDelay::class => 'getPayable']]);
-    //     return new QueueTestHelper(new PassingPayable, fn ($queueable) => PayReleasingWithDelay::queue($queueable), false);
+$releasedWithDelay = [
+    'released with delay job' => fn () => new QueueTestHelper(new ReleasedWithDelayJob, fn ($queueable) => dispatch($queueable), false),
+    // 'released with delay event' => fn () => new QueueTestHelper(new ReleasedWithDelayEvent, fn ($queueable) => dispatch($queueable), false),
+    // 'released with delay listener' => fn () => new QueueTestHelper(new ReleasedWithDelayListener, fn ($queueable) => dispatch($queueable), false),
+    // 'released with delay mailable' => fn () => new QueueTestHelper((new ReleasedWithDelayMailable)->to('example@email.com'), fn ($queueable) => PendingMail::queue($queueable), false),
+    // 'released with delay notification' => fn () => new QueueTestHelper(new ReleasedWithDelayNotification, fn ($queueable) => Notification::route('mail', 'example@email.com')->notify($queueable), false),
+    // 'released with delay custom service with method getter configured' => function () {
+    //     config(['sidecar.queue.job_getters' => [PayReleasedWithDelay::class => 'getPayable']]);
+    //     return new QueueTestHelper(new PassedPayable, fn ($queueable) => PayReleasedWithDelay::queue($queueable), false);
     // },
-    // 'releasing with delay custom service with attribute getter configured' => function () {
-    //     config(['sidecar.queue.job_getters' => [PayReleasingWithDelay::class => 'payable']]);
-    //     return new QueueTestHelper(new PassingPayable, fn ($queueable) => PayReleasingWithDelay::queue($queueable), false);
+    // 'released with delay custom service with attribute getter configured' => function () {
+    //     config(['sidecar.queue.job_getters' => [PayReleasedWithDelay::class => 'payable']]);
+    //     return new QueueTestHelper(new PassedPayable, fn ($queueable) => PayReleasedWithDelay::queue($queueable), false);
     // },
 ];
 
@@ -184,17 +171,13 @@ $optsInAndOut = [
     },
 ];
 
-dataset('jobs', $succeeds);
+dataset('passed jobs', $passed);
+dataset('failed jobs', $failed);
+dataset('thrown jobs', $thrown);
+dataset('released jobs', $released);
+dataset('released jobs with delay', $releasedWithDelay);
 
-dataset('jobs where each will succeed', $succeeds);
-dataset('jobs where each will fail', $fails);
-dataset('jobs where each will fail due to max attempts', $failsFromMaxAttempts);
-
-dataset('jobs where each will delete', $succeeds);
-dataset('jobs where each will release', $release);
-dataset('jobs where each will release with delay', $releaseWithDelay);
-
-dataset('jobs that implement nothing', $succeeds);
-dataset('jobs that implement RunInLambda', $optsIn);
-dataset('jobs that implement DoNotRunInLambda', $optsOut);
-dataset('jobs that implement RunInLambda and DoNotRunInLambda', $optsInAndOut);
+dataset('jobs implementing nothing', $passed);
+dataset('jobs implementing RunInLambda', $optsIn);
+dataset('jobs implementing DoNotRunInLambda', $optsOut);
+dataset('jobs implementing RunInLambda and DoNotRunInLambda', $optsInAndOut);

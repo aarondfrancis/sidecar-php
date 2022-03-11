@@ -2,20 +2,24 @@
 
 namespace Hammerstone\Sidecar\PHP\Tests\Support\App\Mail;
 
-use Hammerstone\Sidecar\PHP\Contracts\Queue\DoNotRunInLambda;
-use Hammerstone\Sidecar\PHP\Contracts\Queue\RunInLambda;
+use Exception;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Mail\Mailable;
 use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Queue\SerializesModels;
 
-class ImplementsBothRunInLambdaAndDoNotRunInLambdaMailable extends Mailable implements ShouldQueue, RunInLambda, DoNotRunInLambda
+class ThrownMailable extends Mailable implements ShouldQueue
 {
     use InteractsWithQueue, Queueable, SerializesModels;
 
     public function build()
     {
-        return $this->view('email', ['content' => 'Cool beans?']);
+        throw new Exception("I'm just kidding. I could hear you. It was just really mean.");
+    }
+
+    public function failed($error)
+    {
+        test()->expect($error->getMessage())->toBe("I'm just kidding. I could hear you. It was just really mean.");
     }
 }

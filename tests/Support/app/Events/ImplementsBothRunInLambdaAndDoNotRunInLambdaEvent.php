@@ -12,8 +12,4 @@ use Illuminate\Queue\SerializesModels;
 class ImplementsBothRunInLambdaAndDoNotRunInLambdaEvent implements ShouldQueue, RunInLambda, DoNotRunInLambda
 {
     use Dispatchable, InteractsWithSockets, SerializesModels;
-
-    public function handle()
-    {
-    }
 }

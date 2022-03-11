@@ -2,15 +2,16 @@
 
 namespace Hammerstone\Sidecar\PHP\Tests\Support\App\Listeners;
 
-use Hammerstone\Sidecar\PHP\Tests\Support\App\Events\AttemptsReachedEvent;
+use Hammerstone\Sidecar\PHP\Tests\Support\App\Events\ReleasedEvent;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Queue\InteractsWithQueue;
 
-class AttemptsReachedListener implements ShouldQueue
+class ReleasedListener implements ShouldQueue
 {
     use InteractsWithQueue;
 
-    public function handle(AttemptsReachedEvent $event)
+    public function handle(ReleasedEvent $event)
     {
+        $this->release();
     }
 }

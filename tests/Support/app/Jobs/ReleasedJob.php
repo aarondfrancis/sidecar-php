@@ -9,12 +9,12 @@ use Illuminate\Foundation\Bus\Dispatchable;
 use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Queue\SerializesModels;
 
-class ReleasingWithDelayJob implements ShouldQueue
+class ReleasedJob implements ShouldQueue
 {
     use Dispatchable, InteractsWithQueue, Queueable, SerializesModels;
 
     public function handle()
     {
-        $this->release(10);
+        $this->release();
     }
 }

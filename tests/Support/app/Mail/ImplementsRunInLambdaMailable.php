@@ -6,11 +6,12 @@ use Hammerstone\Sidecar\PHP\Contracts\Queue\RunInLambda;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Mail\Mailable;
+use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Queue\SerializesModels;
 
 class ImplementsRunInLambdaMailable extends Mailable implements ShouldQueue, RunInLambda
 {
-    use Queueable, SerializesModels;
+    use InteractsWithQueue, Queueable, SerializesModels;
 
     public function build()
     {

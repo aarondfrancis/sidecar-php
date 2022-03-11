@@ -3,21 +3,21 @@
 namespace Hammerstone\Sidecar\PHP\Tests\Support\App\Providers;
 
 use Hammerstone\Sidecar\PHP\Tests\Support\App\Events\AttemptsReachedEvent;
-use Hammerstone\Sidecar\PHP\Tests\Support\App\Events\FailingEvent;
+use Hammerstone\Sidecar\PHP\Tests\Support\App\Events\FailedEvent;
 use Hammerstone\Sidecar\PHP\Tests\Support\App\Events\ImplementsBothRunInLambdaAndDoNotRunInLambdaEvent;
 use Hammerstone\Sidecar\PHP\Tests\Support\App\Events\ImplementsDoNotRunInLambdaEvent;
 use Hammerstone\Sidecar\PHP\Tests\Support\App\Events\ImplementsRunInLambdaEvent;
-use Hammerstone\Sidecar\PHP\Tests\Support\App\Events\PassingEvent;
-use Hammerstone\Sidecar\PHP\Tests\Support\App\Events\ReleasingEvent;
-use Hammerstone\Sidecar\PHP\Tests\Support\App\Events\ReleasingWithDelayEvent;
+use Hammerstone\Sidecar\PHP\Tests\Support\App\Events\PassedEvent;
+use Hammerstone\Sidecar\PHP\Tests\Support\App\Events\ReleasedEvent;
+use Hammerstone\Sidecar\PHP\Tests\Support\App\Events\ReleasedWithDelayEvent;
 use Hammerstone\Sidecar\PHP\Tests\Support\App\Listeners\AttemptsReachedListener;
-use Hammerstone\Sidecar\PHP\Tests\Support\App\Listeners\FailingListener;
+use Hammerstone\Sidecar\PHP\Tests\Support\App\Listeners\FailedListener;
 use Hammerstone\Sidecar\PHP\Tests\Support\App\Listeners\ImplementsBothRunInLambdaAndDoNotRunInLambdaListener;
 use Hammerstone\Sidecar\PHP\Tests\Support\App\Listeners\ImplementsDoNotRunInLambdaListener;
 use Hammerstone\Sidecar\PHP\Tests\Support\App\Listeners\ImplementsRunInLambdaListener;
-use Hammerstone\Sidecar\PHP\Tests\Support\App\Listeners\PassingListener;
-use Hammerstone\Sidecar\PHP\Tests\Support\App\Listeners\ReleasingListener;
-use Hammerstone\Sidecar\PHP\Tests\Support\App\Listeners\ReleasingWithDelayListener;
+use Hammerstone\Sidecar\PHP\Tests\Support\App\Listeners\PassedListener;
+use Hammerstone\Sidecar\PHP\Tests\Support\App\Listeners\ReleasedListener;
+use Hammerstone\Sidecar\PHP\Tests\Support\App\Listeners\ReleasedWithDelayListener;
 use Illuminate\Foundation\Support\Providers\EventServiceProvider as ServiceProvider;
 
 class EventServiceProvider extends ServiceProvider
@@ -26,8 +26,8 @@ class EventServiceProvider extends ServiceProvider
         AttemptsReachedEvent::class => [
             AttemptsReachedListener::class,
         ],
-        FailingEvent::class => [
-            FailingListener::class,
+        FailedEvent::class => [
+            FailedListener::class,
         ],
         ImplementsBothRunInLambdaAndDoNotRunInLambdaEvent::class => [
             ImplementsBothRunInLambdaAndDoNotRunInLambdaListener::class,
@@ -38,14 +38,17 @@ class EventServiceProvider extends ServiceProvider
         ImplementsRunInLambdaEvent::class => [
             ImplementsRunInLambdaListener::class,
         ],
-        PassingEvent::class => [
-            PassingListener::class,
+        PassedEvent::class => [
+            PassedListener::class,
         ],
-        ReleasingEvent::class => [
-            ReleasingListener::class,
+        ReleasedEvent::class => [
+            ReleasedListener::class,
         ],
-        ReleasingWithDelayEvent::class => [
-            ReleasingWithDelayListener::class,
+        ReleasedWithDelayEvent::class => [
+            ReleasedWithDelayListener::class,
+        ],
+        ThrownEvent::class => [
+            ThrownListener::class,
         ],
     ];
 }

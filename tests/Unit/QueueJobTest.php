@@ -19,14 +19,14 @@ test('given the job implements RunInLambda, then optedInForLambdaExecution is se
 
     expect($payload['optedInForLambdaExecution'])->toBe(true);
     expect($payload['optedOutForLambdaExecution'])->toBe(false);
-})->with('jobs that implement RunInLambda');
+})->with('jobs implementing RunInLambda');
 
 test('given the job does not implement RunInLambda, then optedInForLambdaExecution is set to false in the payload', function (QueueTestHelper $pendingJob) {
     $payload = $pendingJob->onQueue('lambda')->payload();
 
     expect($payload['optedInForLambdaExecution'])->toBe(false);
     expect($payload['optedOutForLambdaExecution'])->toBe(false);
-})->with('jobs that implement nothing');
+})->with('jobs implementing nothing');
 
 test('given the job implements DoNotRunInLambda, then optedOutForLambdaExecution is set to true in the payload', function (QueueTestHelper $pendingJob, string $onQueue, string|array $allowedQueues) {
     SidecarTestHelper::record()->enableQueueFeature(optin: true, queues: $allowedQueues);
@@ -34,7 +34,7 @@ test('given the job implements DoNotRunInLambda, then optedOutForLambdaExecution
 
     expect($payload['optedInForLambdaExecution'])->toBe(false);
     expect($payload['optedOutForLambdaExecution'])->toBe(true);
-})->with('jobs that implement DoNotRunInLambda')->with([
+})->with('jobs implementing DoNotRunInLambda')->with([
     'all queues are allowed (string config value)' => ['lambda', '*'],
     'the queue is allowed (string config value)' => ['lambda', 'lambda'],
     'the queue is not allowed (string config value)' => ['not-lambda', 'lambda'],
@@ -50,7 +50,7 @@ test('given the job implements both RunInLambda and DoNotRunInLambda, then opted
 
     expect($payload['optedInForLambdaExecution'])->toBe(true);
     expect($payload['optedOutForLambdaExecution'])->toBe(true);
-})->with('jobs that implement RunInLambda and DoNotRunInLambda')->with([
+})->with('jobs implementing RunInLambda and DoNotRunInLambda')->with([
     'all queues are allowed (string config value)' => ['lambda', '*'],
     'the queue is allowed (string config value)' => ['lambda', 'lambda'],
     'the queue is not allowed (string config value)' => ['not-lambda', 'lambda'],
@@ -66,7 +66,7 @@ test('given the job does not implement DoNotRunInLambda, then optedOutForLambdaE
 
     expect($payload['optedInForLambdaExecution'])->toBe(false);
     expect($payload['optedOutForLambdaExecution'])->toBe($expected);
-})->with('jobs that implement nothing')->with([
+})->with('jobs implementing nothing')->with([
     'all queues are allowed (string config value)' => ['lambda', '*', false],
     'the queue is allowed (string config value)' => ['lambda', 'lambda', false],
     'the queue is not allowed (string config value)' => ['not-lambda', 'lambda', true],
