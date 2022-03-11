@@ -24,17 +24,17 @@ beforeEach(function () {
     });
 });
 
-it('will bind the extended queue worker when the sidebar queues feature is on', function () {
+it('binds the extended queue worker when the sidecar queue feature is on', function () {
     SidecarTestHelper::record()->enableQueueFeature(optin: true, queues: '*');
     expect(app()->make('queue.worker'))->toBeInstanceOf(LaravelLambdaWorker::class);
 });
 
-it('will not bind the extended queue worker when the sidebar queues feature is off', function () {
+it('does not bind the extended queue worker when the sidecar queue feature is off', function () {
     SidecarTestHelper::record()->disableQueueFeature();
     expect(app()->make('queue.worker'))->not->toBeInstanceOf(LaravelLambdaWorker::class);
 });
 
-it('will not run on lambda when the sidebar queues feature is off', function (QueueTestHelper $pendingJob) {
+it('does not run on lambda when the sidecar queue feature is off', function (QueueTestHelper $pendingJob) {
     SidecarTestHelper::record()->disableQueueFeature();
     $pendingJob->onQueue('lambda')->dispatch();
     $pendingJob->assertQueued();
@@ -48,7 +48,7 @@ it('will not run on lambda when the sidebar queues feature is off', function (Qu
     $pendingJob->assertNotExecutedOnLambda();
 })->with('passed jobs');
 
-it('will run on lambda in the following payload opted-in/opted-out conditions', function (QueueTestHelper $pendingJob, bool $mustOptIn, bool $optedInForLambdaExecution, bool $optedOutForLambdaExecution, bool $expected) {
+it('can be opted-in and opted-out of running on lambda', function (QueueTestHelper $pendingJob, bool $mustOptIn, bool $optedInForLambdaExecution, bool $optedOutForLambdaExecution, bool $expected) {
     SidecarTestHelper::record()->enableQueueFeature(optin: $mustOptIn, queues: '*');
     $pendingJob->onQueue('lambda')->with([
         'optedInForLambdaExecution' => $optedInForLambdaExecution,
@@ -74,7 +74,27 @@ it('will run on lambda in the following payload opted-in/opted-out conditions', 
     '!must-opt-in + !in + !out' => [false, false, false, true],
 ]);
 
-test('when the lambda flags its job as released then the job is released', function (QueueTestHelper $pendingJob) {
+it('can pass', function (QueueTestHelper $pendingJob) {
+    SidecarTestHelper::record()->enableQueueFeature(optin: false, queues: '*');
+    $pendingJob->onQueue('lambda')->dispatch();
+    $pendingJob->assertQueued();
+
+    $pendingJob->runQueueWorker();
+
+    $pendingJob->assertNotFailed();
+    $pendingJob->assertNotQueued();
+    $pendingJob->assertNotReleased();
+    $pendingJob->assertNotDelayed();
+    $pendingJob->assertExecutedOnLambda(1, function (SettledResult $result) {
+        expect(Arr::only($result->body(), ['failed', 'released', 'delay']))->toBe([
+            'failed' => false,
+            'released' => false,
+            'delay' => 0,
+        ]);
+    });
+})->with('passed jobs');
+
+it('can release jobs', function (QueueTestHelper $pendingJob) {
     SidecarTestHelper::record()->enableQueueFeature(optin: false, queues: '*');
     $pendingJob->onQueue('lambda')->dispatch();
     $pendingJob->assertQueued();
@@ -93,7 +113,7 @@ test('when the lambda flags its job as released then the job is released', funct
     });
 })->with('released jobs');
 
-test('when the lambda flags its job as not released then the job is not released', function (QueueTestHelper $pendingJob) {
+it('does not release the job within the lambda', function (QueueTestHelper $pendingJob) {
     SidecarTestHelper::record()
         ->enableQueueFeature(optin: false, queues: '*')
         ->transform(LaravelLambda::class, function (array $body) {
@@ -118,7 +138,7 @@ test('when the lambda flags its job as not released then the job is not released
     });
 })->with('released jobs');
 
-test('when the lambda flags its job as released with a custom delay then the job is released with the same custom delay', function (QueueTestHelper $pendingJob) {
+it('can release jobs with delay', function (QueueTestHelper $pendingJob) {
     SidecarTestHelper::record()
         ->enableQueueFeature(optin: false, queues: '*')
         ->transform(LaravelLambda::class, function (array $body) {
@@ -143,11 +163,11 @@ test('when the lambda flags its job as released with a custom delay then the job
     });
 })->with('released jobs with delay');
 
-test('when the lambda flags its job as failed then it is pushed to the failed jobs and not released for retry', function (QueueTestHelper $pendingJob) {
+it('can fail and release for retry [fail]', function (QueueTestHelper $pendingJob) {
     SidecarTestHelper::record()->enableQueueFeature(optin: false, queues: '*');
     $pendingJob->onQueue('lambda')->with([
         'attempts' => 1,
-        'maxTries' => 1,
+        'maxTries' => 3,
     ])->dispatch();
     $pendingJob->assertQueued();
 
@@ -169,7 +189,7 @@ test('when the lambda flags its job as failed then it is pushed to the failed jo
     });
 })->with('failed jobs');
 
-test('when the lambda throws an exception then the job is not marked as failed and released for retry', function (QueueTestHelper $pendingJob) {
+it('can fail and release for retry [exception]', function (QueueTestHelper $pendingJob) {
     SidecarTestHelper::record()->enableQueueFeature(optin: false, queues: '*');
     $pendingJob->onQueue('lambda')->with([
         'attempts' => 1,
@@ -203,8 +223,7 @@ test('when the lambda throws an exception then the job is not marked as failed a
     });
 })->with('thrown jobs');
 
-test('it will not run on lambda when the job has hit its max attempts (from marked as failed) and the job will fail as normal', function (QueueTestHelper $pendingJob) {
-    \Hammerstone\Sidecar\PHP\Support\Config\SidecarConfig::make()->queueDriverSupported();
+it('can fail when the max attempts is hit [fail]', function (QueueTestHelper $pendingJob) {
     SidecarTestHelper::record()->enableQueueFeature(optin: false, queues: '*');
     $pendingJob->onQueue('lambda')->with([
         'attempts' => 3,
@@ -231,8 +250,7 @@ test('it will not run on lambda when the job has hit its max attempts (from mark
     });
 })->with('failed jobs');
 
-test('it will not run on lambda when the job has hit its max attempts (from thrown exception) and the job will fail as normal', function (QueueTestHelper $pendingJob) {
-    \Hammerstone\Sidecar\PHP\Support\Config\SidecarConfig::make()->queueDriverSupported();
+it('can fail when the max attempts is hit [exception]', function (QueueTestHelper $pendingJob) {
     SidecarTestHelper::record()->enableQueueFeature(optin: false, queues: '*');
     $pendingJob->onQueue('lambda')->with([
         'attempts' => 3,
