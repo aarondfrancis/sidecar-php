@@ -7,6 +7,7 @@ namespace Hammerstone\Sidecar\PHP\Tests;
 
 use Hammerstone\Sidecar\Deployment;
 use Hammerstone\Sidecar\PHP\LaravelLambda;
+use Hammerstone\Sidecar\PHP\PhpLambda;
 use Hammerstone\Sidecar\PHP\Providers\SidecarPhpServiceProvider;
 use Hammerstone\Sidecar\PHP\Tests\Support\App\Providers\EventServiceProvider;
 use Hammerstone\Sidecar\PHP\Tests\Support\QueueTestHelper;
@@ -26,6 +27,10 @@ abstract class TestCase extends BaseTestCase
     protected function setUp(): void
     {
         parent::setUp();
+
+        if (config('sidecar.testing.mock_php_lambda')) {
+            PhpLambda::mock();
+        }
 
         $this->beKindAndRewind(function () {
             QueueTestHelper::reset();
@@ -70,10 +75,10 @@ abstract class TestCase extends BaseTestCase
         $app->make(LoadConfiguration::class)->bootstrap($app);
 
         config(['sidecar.functions' => [LaravelLambda::class]]);
-        config(['sidecar.testing.mock_php_lambda' => $mockingQueue = (bool) env('MOCK_PHP_LAMBDA', true)]);
+        config(['sidecar.testing.mock_php_lambda' => $mocking = (bool) env('MOCK_PHP_LAMBDA', true)]);
 
         (new SidecarServiceProvider($app))->register();
-        if (static::$deployed === false && $mockingQueue === false) {
+        if (static::$deployed === false && $mocking === false) {
             static::$deployed = true;
             Deployment::make()->deploy()->activate(true);
         }
