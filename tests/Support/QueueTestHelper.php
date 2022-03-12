@@ -4,8 +4,8 @@ namespace Hammerstone\Sidecar\PHP\Tests\Support;
 
 use Closure;
 use Exception;
-use Hammerstone\Sidecar\Events\AfterFunctionExecuted;
-use Hammerstone\Sidecar\Events\BeforeFunctionExecuted;
+use Hammerstone\Sidecar\PHP\Events\LambdaJobProcessed;
+use Hammerstone\Sidecar\PHP\Events\LambdaJobProcessing;
 use Hammerstone\Sidecar\PHP\LaravelLambda;
 use Hammerstone\Sidecar\PHP\PhpLambda;
 use Hammerstone\Sidecar\PHP\Support\Config\SidecarConfig;
@@ -61,8 +61,8 @@ class QueueTestHelper extends Decorator
     public function mock(): self
     {
         $defaultQueue = config('queue.default');
-        app('events')->listen(BeforeFunctionExecuted::class, fn (BeforeFunctionExecuted $event) => config(['queue.default' => 'null', 'queue.connections.null.driver' => 'null']));
-        app('events')->listen(AfterFunctionExecuted::class, fn (AfterFunctionExecuted $event) => config(['queue.default' => $defaultQueue]));
+        app('events')->listen(LambdaJobProcessing::class, fn (LambdaJobProcessing $event) => config(['queue.default' => 'null', 'queue.connections.null.driver' => 'null']));
+        app('events')->listen(LambdaJobProcessed::class, fn (LambdaJobProcessed $event) => config(['queue.default' => $defaultQueue]));
         PhpLambda::mock();
 
         return $this;

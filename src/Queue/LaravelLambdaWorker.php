@@ -3,6 +3,8 @@
 namespace Hammerstone\Sidecar\PHP\Queue;
 
 use Closure;
+use Hammerstone\Sidecar\PHP\Events\LambdaJobProcessed;
+use Hammerstone\Sidecar\PHP\Events\LambdaJobProcessing;
 use Hammerstone\Sidecar\PHP\LaravelLambda;
 use Hammerstone\Sidecar\PHP\Support\Decorator;
 use Illuminate\Queue\Jobs\JobName;
@@ -78,7 +80,10 @@ class LaravelLambdaWorker extends Worker
                                 return $this->payload()['id'] ?? null;
                             }
                         };
+
                         // TODO: set drivers to collect dispatches and logs for the response.
+
+                        event(new LambdaJobProcessing($connectionName, $job));
 
                         try {
                             $container->make($class)->{$method}($job, $data);
@@ -105,14 +110,14 @@ class LaravelLambdaWorker extends Worker
                             $exception = $error;
                         }
 
-                        return [
+                        return tap([
                             'failed' => $job->hasFailed(),
                             'exception' => serialize($exception),
                             'released' => $job->isReleased(),
                             'delay' => (int) $job->delay,
                             // TODO: jobs to dispatch. Note that release() did not dispatch anything.
                             // TODO: logs to log. This should be done by the queue manager because a Forge box likely would have a log file vs. cloudwatch logs.
-                        ];
+                        ], fn () => event(new LambdaJobProcessed($connectionName, $job)));
                     })->throw()->body();
 
                     $exception = unserialize($result['exception']);
