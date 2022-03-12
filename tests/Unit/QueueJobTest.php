@@ -65,7 +65,7 @@ test('given the job does not implement DoNotRunInLambda, then optedOutForLambdaE
     SidecarTestHelper::record()->enableQueueFeature(optin: true, queues: $allowedQueues);
     $payload = $pendingJob->onQueue($onQueue)->payload();
     if ($expected && Str::endsWith($pendingJob->job::class, 'Listener') && $onQueue !== 'lambda') {
-        test()->markTestSkipped('cannot specify the queue for listeners');
+        test()->markTestSkipped('Cannot specify which queue the listeners should use from an event.');
     }
 
     expect($payload['optedInForLambdaExecution'])->toBe(false);

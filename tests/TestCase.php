@@ -70,8 +70,10 @@ abstract class TestCase extends BaseTestCase
         $app->make(LoadConfiguration::class)->bootstrap($app);
 
         config(['sidecar.functions' => [LaravelLambda::class]]);
+        config(['sidecar.testing.mock_php_lambda' => $mockingQueue = (bool) env('MOCK_PHP_LAMBDA', true)]);
+
         (new SidecarServiceProvider($app))->register();
-        if (static::$deployed === false) {
+        if (static::$deployed === false && $mockingQueue === false) {
             static::$deployed = true;
             Deployment::make()->deploy()->activate(true);
         }

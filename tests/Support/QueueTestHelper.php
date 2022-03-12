@@ -4,7 +4,10 @@ namespace Hammerstone\Sidecar\PHP\Tests\Support;
 
 use Closure;
 use Exception;
+use Hammerstone\Sidecar\Events\AfterFunctionExecuted;
+use Hammerstone\Sidecar\Events\BeforeFunctionExecuted;
 use Hammerstone\Sidecar\PHP\LaravelLambda;
+use Hammerstone\Sidecar\PHP\PhpLambda;
 use Hammerstone\Sidecar\PHP\Support\Config\SidecarConfig;
 use Hammerstone\Sidecar\PHP\Support\Decorator;
 use Illuminate\Contracts\Queue\Job;
@@ -12,10 +15,7 @@ use Illuminate\Contracts\Queue\Queue as QueueContract;
 use Illuminate\Queue\DatabaseQueue;
 use Illuminate\Queue\Events\JobFailed;
 use Illuminate\Queue\Failed\FailedJobProviderInterface;
-use Illuminate\Queue\Jobs\DatabaseJob;
-use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\Queue;
-use Illuminate\Support\Str;
 
 class QueueTestHelper extends Decorator
 {
@@ -37,6 +37,8 @@ class QueueTestHelper extends Decorator
             $this->failedJob = $event->job;
         });
 
+        $this->mockWhenConfigured();
+
         parent::__construct($this->job);
     }
 
@@ -47,6 +49,23 @@ class QueueTestHelper extends Decorator
             ->values()
             ->each(fn (string $queueName) => Queue::clear($queueName))
             ->all();
+    }
+
+    public function mockWhenConfigured(): self
+    {
+        return config('sidecar.testing.mock_php_lambda')
+            ? $this->mock()
+            : $this;
+    }
+
+    public function mock(): self
+    {
+        $defaultQueue = config('queue.default');
+        app('events')->listen(BeforeFunctionExecuted::class, fn (BeforeFunctionExecuted $event) => config(['queue.default' => 'null', 'queue.connections.null.driver' => 'null']));
+        app('events')->listen(AfterFunctionExecuted::class, fn (AfterFunctionExecuted $event) => config(['queue.default' => $defaultQueue]));
+        PhpLambda::mock();
+
+        return $this;
     }
 
     public function queue(): QueueContract

@@ -1,6 +1,7 @@
 <?php
 
 use Hammerstone\Sidecar\PHP\Tests\TestCase;
+use Illuminate\Pipeline\Pipeline;
 use Illuminate\Support\Facades\Queue;
 
 /*
@@ -42,7 +43,29 @@ expect()->extend('toBeOne', function () {
 |
 */
 
-function something()
-{
-    // ..
+if (! function_exists('pipeline')) {
+    function pipeline($value)
+    {
+        return resolve(Pipeline::class)->send($value);
+    }
+}
+
+if (! function_exists('pipe')) {
+    function pipe(Closure $closure)
+    {
+        return function ($value, Closure $next) use ($closure) {
+            $closure($value);
+
+            return $next($value);
+        };
+    }
+}
+
+if (! function_exists('carry')) {
+    function carry(Closure $closure)
+    {
+        return function ($value, Closure $next) use ($closure) {
+            return $next($closure($value));
+        };
+    }
 }
