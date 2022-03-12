@@ -69,14 +69,14 @@ it('can be opted-in and opted-out of running on lambda', function (QueueTestHelp
     $pendingJob->assertNotReleased();
     $pendingJob->assertExecutedOnLambda($expected ? 1 : 0);
 })->with('passed jobs')->with([
-    'must-opt-in + in + out' => [true, true, true, false],
-    'must-opt-in + !in + out' => [true, false, true, false],
-    'must-opt-in + in + !out' => [true, true, false, true],
-    'must-opt-in + !in + !out' => [true, false, false, false],
-    '!must-opt-in + in + out' => [false, true, true, false],
-    '!must-opt-in + !in + out' => [false, false, true, false],
-    '!must-opt-in + in + !out' => [false, true, false, true],
-    '!must-opt-in + !in + !out' => [false, false, false, true],
+    'when: [x] required; [x] optin; [x] optout; → then: [ ] on lambda' => [true, true, true, false],
+    'when: [x] required; [ ] optin; [x] optout; → then: [ ] on lambda' => [true, false, true, false],
+    'when: [x] required; [x] optin; [ ] optout; → then: [x] on lambda' => [true, true, false, true],
+    'when: [x] required; [ ] optin; [ ] optout; → then: [ ] on lambda' => [true, false, false, false],
+    'when: [ ] required; [x] optin; [x] optout; → then: [ ] on lambda' => [false, true, true, false],
+    'when: [ ] required; [ ] optin; [x] optout; → then: [ ] on lambda' => [false, false, true, false],
+    'when: [ ] required; [x] optin; [ ] optout; → then: [x] on lambda' => [false, true, false, true],
+    'when: [ ] required; [ ] optin; [ ] optout; → then: [x] on lambda' => [false, false, false, true],
 ]);
 
 it('can pass', function (QueueTestHelper $pendingJob) {
