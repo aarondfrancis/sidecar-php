@@ -2,14 +2,14 @@
 
 namespace Hammerstone\Sidecar\PHP\Tests\Support\App\Mail;
 
-use Hammerstone\Sidecar\PHP\Contracts\Queue\RunInLambda;
+use Exception;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Mail\Mailable;
 use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Queue\SerializesModels;
 
-class ReleasedWithDelayMailable extends Mailable implements ShouldQueue, RunInLambda
+class FailedMailable extends Mailable implements ShouldQueue
 {
     use InteractsWithQueue, Queueable, SerializesModels;
 
@@ -20,6 +20,10 @@ class ReleasedWithDelayMailable extends Mailable implements ShouldQueue, RunInLa
 
     public function build()
     {
-        return $this->view('email', ['content' => "No, Kevin, I know, for a fact, you don't party."]);
+        $this->fail();
+    }
+
+    public function failed($error)
+    {
     }
 }

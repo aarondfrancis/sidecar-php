@@ -2,13 +2,13 @@
 
 namespace Hammerstone\Sidecar\PHP\Tests\Support\App\Notifications;
 
-use Facades\Hammerstone\Sidecar\PHP\Tests\Support\App\Mail\ReleasedMailable;
+use Facades\Hammerstone\Sidecar\PHP\Tests\Support\App\Mail\FailedMailable;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Notifications\Messages\MailMessage;
 use Illuminate\Notifications\Notification;
 
-class ReleasedNotification extends Notification implements ShouldQueue
+class FailedNotification extends Notification implements ShouldQueue
 {
     use Queueable;
 
@@ -24,8 +24,11 @@ class ReleasedNotification extends Notification implements ShouldQueue
 
     public function toMail($notifiable)
     {
-        test()->markTestSkipped('Cannot release a queued notification.');
+        return FailedMailable::to($notifiable?->routes['mail'] ?? $notifiable?->email ?? $notifiable?->email);
+    }
 
-        return ReleasedMailable::to($notifiable?->routes['mail'] ?? $notifiable?->email ?? $notifiable?->email);
+    public function failed($error)
+    {
+        test()->expect($error->getMessage())->toBe("I'm just kidding. I could hear you. It was just really mean.");
     }
 }

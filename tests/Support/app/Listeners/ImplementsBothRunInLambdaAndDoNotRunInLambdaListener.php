@@ -12,7 +12,14 @@ class ImplementsBothRunInLambdaAndDoNotRunInLambdaListener implements ShouldQueu
 {
     use InteractsWithQueue;
 
+    public ?string $queue = 'lambda';
+
     public function handle(ImplementsBothRunInLambdaAndDoNotRunInLambdaEvent $event)
     {
+    }
+
+    public function onQueue()
+    {
+        return $this;
     }
 }

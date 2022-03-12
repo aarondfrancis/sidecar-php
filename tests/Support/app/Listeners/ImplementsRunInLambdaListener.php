@@ -11,7 +11,14 @@ class ImplementsRunInLambdaListener implements ShouldQueue, RunInLambda
 {
     use InteractsWithQueue;
 
+    public ?string $queue = 'lambda';
+
     public function handle(ImplementsRunInLambdaEvent $event)
     {
+    }
+
+    public function onQueue()
+    {
+        return $this;
     }
 }

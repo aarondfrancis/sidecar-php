@@ -13,6 +13,11 @@ class ReleasedMailable extends Mailable implements ShouldQueue, RunInLambda
 {
     use InteractsWithQueue, Queueable, SerializesModels;
 
+    public function __construct()
+    {
+        test()->markTestSkipped('Mailables cannot interact with the queue.');
+    }
+
     public function build()
     {
         return $this->view('email', ['content' => 'My name is Rod, and I like to party.']);

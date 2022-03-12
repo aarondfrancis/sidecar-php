@@ -7,6 +7,7 @@ use Hammerstone\Sidecar\PHP\Tests\Support\SidecarTestHelper;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Notification;
 use Illuminate\Support\Facades\Queue;
+use Illuminate\Support\Str;
 
 /** @see \Hammerstone\Sidecar\PHP\Tests\Unit\WorkJobTest for how we make use of the payload's `optedInForLambdaExecution` and `optedOutForLambdaExecution` values. */
 
@@ -63,6 +64,9 @@ test('given the job implements both RunInLambda and DoNotRunInLambda, then opted
 test('given the job does not implement DoNotRunInLambda, then optedOutForLambdaExecution is true in the payload only when the queue is not allowed', function (QueueTestHelper $pendingJob, string $onQueue, string|array $allowedQueues, bool $expected) {
     SidecarTestHelper::record()->enableQueueFeature(optin: true, queues: $allowedQueues);
     $payload = $pendingJob->onQueue($onQueue)->payload();
+    if ($expected && Str::endsWith($pendingJob->job::class, 'Listener') && $onQueue !== 'lambda') {
+        test()->markTestSkipped('cannot specify the queue for listeners');
+    }
 
     expect($payload['optedInForLambdaExecution'])->toBe(false);
     expect($payload['optedOutForLambdaExecution'])->toBe($expected);

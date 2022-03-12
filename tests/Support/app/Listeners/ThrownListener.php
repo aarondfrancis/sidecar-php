@@ -3,7 +3,7 @@
 namespace Hammerstone\Sidecar\PHP\Tests\Support\App\Listeners;
 
 use Exception;
-use Hammerstone\Sidecar\PHP\Tests\Support\App\Events\FailedEvent;
+use Hammerstone\Sidecar\PHP\Tests\Support\App\Events\ThrownEvent;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Queue\InteractsWithQueue;
 
@@ -11,7 +11,9 @@ class ThrownListener implements ShouldQueue
 {
     use InteractsWithQueue;
 
-    public function handle(FailedEvent $event)
+    public ?string $queue = 'lambda';
+
+    public function handle(ThrownEvent $event)
     {
         throw new Exception('A cooked goose for everyone!');
     }
@@ -19,5 +21,10 @@ class ThrownListener implements ShouldQueue
     public function failed($error)
     {
         test()->expect($error->getMessage())->toBe('A cooked goose for everyone!');
+    }
+
+    public function onQueue()
+    {
+        return $this;
     }
 }

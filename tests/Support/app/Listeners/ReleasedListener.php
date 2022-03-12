@@ -10,8 +10,15 @@ class ReleasedListener implements ShouldQueue
 {
     use InteractsWithQueue;
 
+    public ?string $queue = 'lambda';
+
     public function handle(ReleasedEvent $event)
     {
         $this->release();
+    }
+
+    public function onQueue()
+    {
+        return $this;
     }
 }

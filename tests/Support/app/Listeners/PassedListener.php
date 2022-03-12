@@ -10,7 +10,14 @@ class PassedListener implements ShouldQueue
 {
     use InteractsWithQueue;
 
+    public ?string $queue = 'lambda';
+
     public function handle(PassedEvent $event)
     {
+    }
+
+    public function onQueue()
+    {
+        return $this;
     }
 }

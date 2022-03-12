@@ -4,6 +4,11 @@ namespace Hammerstone\Sidecar\PHP\Tests\Unit;
 
 use Hammerstone\Sidecar\PHP\LaravelLambda;
 use Hammerstone\Sidecar\PHP\Queue\LaravelLambdaWorker;
+use Hammerstone\Sidecar\PHP\Tests\Support\App\Events\FailedEvent;
+use Hammerstone\Sidecar\PHP\Tests\Support\App\Events\PassedEvent;
+use Hammerstone\Sidecar\PHP\Tests\Support\App\Events\ReleasedEvent;
+use Hammerstone\Sidecar\PHP\Tests\Support\App\Events\ReleasedWithDelayEvent;
+use Hammerstone\Sidecar\PHP\Tests\Support\App\Events\ThrownEvent;
 use Hammerstone\Sidecar\PHP\Tests\Support\QueueTestHelper;
 use Hammerstone\Sidecar\PHP\Tests\Support\SidecarTestHelper;
 use Hammerstone\Sidecar\Results\SettledResult;
@@ -163,7 +168,7 @@ it('can release jobs with delay', function (QueueTestHelper $pendingJob) {
     });
 })->with('released jobs with delay');
 
-it('can fail and release for retry [fail]', function (QueueTestHelper $pendingJob) {
+it('can fail without retry [fail]', function (QueueTestHelper $pendingJob) {
     SidecarTestHelper::record()->enableQueueFeature(optin: false, queues: '*');
     $pendingJob->onQueue('lambda')->with([
         'attempts' => 1,
@@ -217,6 +222,7 @@ it('can fail and release for retry [exception]', function (QueueTestHelper $pend
         expect($exception)->not->toBeNull();
         expect($exception->getMessage())->toBeIn([
             "You're a terrible stuntman.",
+            'A cooked goose for everyone!',
             "I'm just kidding. I could hear you. It was just really mean.",
             "They've done it! They've raised $50,000 for Frank's conveniently priced surgery!",
         ]);

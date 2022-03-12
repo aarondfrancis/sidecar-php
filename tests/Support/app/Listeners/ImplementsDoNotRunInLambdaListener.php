@@ -11,7 +11,14 @@ class ImplementsDoNotRunInLambdaListener implements ShouldQueue, DoNotRunInLambd
 {
     use InteractsWithQueue;
 
+    public ?string $queue = 'lambda';
+
     public function handle(ImplementsDoNotRunInLambdaEvent $event)
     {
+    }
+
+    public function onQueue()
+    {
+        return $this;
     }
 }
