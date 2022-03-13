@@ -24,6 +24,7 @@ class QueueTestHelper extends Decorator
     private QueueContract $queue;
     private ?Job $failedJob = null;
     private ?Job $releasedJob = null;
+    private ?string $queueName = null;
     private static array $queueNames = [];
 
     public function __construct($job, ?Closure $dispatcher = null)
@@ -47,7 +48,7 @@ class QueueTestHelper extends Decorator
         static::$queueNames = collect(static::$queueNames)
             ->unique()
             ->values()
-            ->each(fn (string $queueName) => Queue::clear($queueName))
+            ->each(fn (string $queueName) => rescue(fn () => Queue::clear($queueName), null, false))
             ->all();
     }
 
@@ -60,9 +61,12 @@ class QueueTestHelper extends Decorator
 
     public function mock(): self
     {
-        $defaultQueue = config('queue.default');
-        app('events')->listen(LambdaJobProcessing::class, fn (LambdaJobProcessing $event) => config(['queue.default' => 'null', 'queue.connections.null.driver' => 'null']));
-        app('events')->listen(LambdaJobProcessed::class, fn (LambdaJobProcessed $event) => config(['queue.default' => $defaultQueue]));
+        $config = config('queue');
+        app('events')->listen(LambdaJobProcessed::class, fn () => config(['queue' => $config]));
+        app('events')->listen(LambdaJobProcessed::class, fn () => app()->forgetInstance('queue'));
+        app('events')->listen(LambdaJobProcessed::class, fn () => app()->forgetInstance('queue.failer'));
+        app('events')->listen(LambdaJobProcessed::class, fn () => app()->forgetInstance('queue.connection'));
+
         PhpLambda::mock();
 
         return $this;
@@ -71,6 +75,17 @@ class QueueTestHelper extends Decorator
     public function queue(): QueueContract
     {
         return app(QueueContract::class);
+    }
+
+    public function onQueue(?string $queue): self
+    {
+        $this->queueName = $queue;
+
+        if (method_exists($this->job, 'onQueue')) {
+            $this->job->onQueue($queue);
+        }
+
+        return $this;
     }
 
     public function with(array $payload)
@@ -95,7 +110,17 @@ class QueueTestHelper extends Decorator
 
         $queue = static::$queueNames[] = $this->getQueueName();
 
-        return $dispatcher((clone $this->job)->onQueue($queue));
+        if (method_exists($this->job, 'onQueue')) {
+            $this->job->onQueue($queue);
+        }
+
+        $dispatched = $dispatcher(clone $this->job);
+
+        if (is_object($dispatched) && method_exists($dispatched, 'onQueue')) {
+            $dispatched->onQueue($queue);
+        }
+
+        return $dispatched;
     }
 
     public function runQueueWorker(): self
@@ -112,7 +137,7 @@ class QueueTestHelper extends Decorator
 
     public function getQueueName(): string
     {
-        return $this->job->queue ?? 'default';
+        return $this->job->queue ?? $this->queueName ?? 'default';
     }
 
     public function clearQueue(): self
@@ -124,9 +149,7 @@ class QueueTestHelper extends Decorator
 
     public function assertFailed(int $times = 1): self
     {
-        $failedJobs = collect(app(FailedJobProviderInterface::class)->all());
-
-        expect($failedJobs->count())->toBe($times);
+        expect($this->countFailedJobs())->toBe($times);
 
         return $this;
     }
@@ -225,9 +248,14 @@ class QueueTestHelper extends Decorator
         return $this->assertExecutedOnLambda(0);
     }
 
-    private function countQueuedJobs(): int
+    public function countQueuedJobs(): int
     {
         return $this->queue()->size($this->getQueueName());
+    }
+
+    public function countFailedJobs(): int
+    {
+        return collect(app(FailedJobProviderInterface::class)->all())->count();
     }
 
     private function failedJob(): ?Job

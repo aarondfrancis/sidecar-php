@@ -12,6 +12,7 @@ use Illuminate\Queue\Jobs\SyncJob;
 use Illuminate\Queue\Worker;
 use Illuminate\Queue\WorkerOptions;
 use Illuminate\Support\Arr;
+use Illuminate\Support\Facades\Queue;
 use ReflectionClass;
 use ReflectionFunction;
 use Throwable;
@@ -81,7 +82,18 @@ class LaravelLambdaWorker extends Worker
                             }
                         };
 
-                        // TODO: set drivers to collect dispatches and logs for the response.
+                        // TODO: set drivers to collect logs for the response.
+
+                        // Turn off the queue - the worker will dispatch/delete/fail/release jobs based on the returned payload.
+                        config([
+                            'queue.default' => 'null',
+                            'queue.failed.driver' => 'null',
+                            'queue.connections.null.driver' => 'null',
+                        ]);
+                        app()->forgetInstance('queue');
+                        app()->forgetInstance('queue.failer');
+                        app()->forgetInstance('queue.connection');
+                        Queue::fake();
 
                         event(new LambdaJobProcessing($connectionName, $job));
 
@@ -89,7 +101,13 @@ class LaravelLambdaWorker extends Worker
                             $container->make($class)->{$method}($job, $data);
                         } catch (Throwable $error) {
                             $cursor = $error;
-                            $prop = tap((new ReflectionClass($error::class))->getProperty('trace'))->setAccessible(true);
+
+                            $reflection = new ReflectionClass($error::class);
+                            while ($reflection->hasProperty('trace') === false) {
+                                $reflection = $reflection->getParentClass();
+                            }
+                            $prop = tap($reflection->getProperty('trace'))->setAccessible(true);
+
                             do {
                                 $trace = $prop->getValue($cursor);
                                 foreach ($trace as &$call) {
@@ -115,12 +133,17 @@ class LaravelLambdaWorker extends Worker
                             'exception' => serialize($exception),
                             'released' => $job->isReleased(),
                             'delay' => (int) $job->delay,
-                            // TODO: jobs to dispatch. Note that release() did not dispatch anything.
+                            'jobs' => collect(Queue::pushedJobs())->collapse()->map(fn ($item) => serialize($item['job']))->all(),
                             // TODO: logs to log. This should be done by the queue manager because a Forge box likely would have a log file vs. cloudwatch logs.
                         ], fn () => event(new LambdaJobProcessed($connectionName, $job)));
                     })->throw()->body();
 
                     $exception = unserialize($result['exception']);
+
+                    // Dispatch any returned jobs.
+                    foreach (array_map('unserialize', $result['jobs']) as $job) {
+                        dispatch($job);
+                    }
 
                     // Pushes to failed_jobs and deletes the current job.
                     if ($result['failed']) {

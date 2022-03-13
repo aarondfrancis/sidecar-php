@@ -2,6 +2,9 @@
 
 namespace Hammerstone\Sidecar\PHP\Tests\Unit;
 
+use Closure;
+use Hammerstone\Sidecar\PHP\Events\LambdaJobProcessed;
+use Hammerstone\Sidecar\PHP\Events\LambdaJobProcessing;
 use Hammerstone\Sidecar\PHP\LaravelLambda;
 use Hammerstone\Sidecar\PHP\Queue\LaravelLambdaWorker;
 use Hammerstone\Sidecar\PHP\Tests\Support\App\Events\FailedEvent;
@@ -9,9 +12,14 @@ use Hammerstone\Sidecar\PHP\Tests\Support\App\Events\PassedEvent;
 use Hammerstone\Sidecar\PHP\Tests\Support\App\Events\ReleasedEvent;
 use Hammerstone\Sidecar\PHP\Tests\Support\App\Events\ReleasedWithDelayEvent;
 use Hammerstone\Sidecar\PHP\Tests\Support\App\Events\ThrownEvent;
+use Hammerstone\Sidecar\PHP\Tests\Support\App\Jobs\FailedJob;
+use Hammerstone\Sidecar\PHP\Tests\Support\App\Jobs\PassedJob;
+use Hammerstone\Sidecar\PHP\Tests\Support\App\Jobs\ReleasedJob;
+use Hammerstone\Sidecar\PHP\Tests\Support\App\Jobs\ThrownJob;
 use Hammerstone\Sidecar\PHP\Tests\Support\QueueTestHelper;
 use Hammerstone\Sidecar\PHP\Tests\Support\SidecarTestHelper;
 use Hammerstone\Sidecar\Results\SettledResult;
+use Illuminate\Queue\Events\JobProcessed;
 use Illuminate\Queue\Events\JobProcessing;
 use Illuminate\Queue\Jobs\DatabaseJob;
 use Illuminate\Support\Arr;
@@ -282,3 +290,75 @@ it('can fail when the max attempts is hit [exception]', function (QueueTestHelpe
         ]);
     });
 })->with('thrown jobs');
+
+it('handles dispatching jobs within the lambda', function () {
+    SidecarTestHelper::record()->enableQueueFeature(optin: false, queues: '*');
+    $pendingJob = new QueueTestHelper(function () {
+        dispatch(new PassedJob)->onQueue('lambda');
+        dispatch(new FailedJob)->onQueue('lambda');
+        dispatch(new ReleasedJob)->onQueue('lambda');
+        dispatch(new ThrownJob)->onQueue('lambda');
+    }, fn (Closure $closure) => dispatch($closure));
+    $pendingJob->onQueue('lambda')->dispatch();
+    $pendingJob->assertQueued(1);
+    $pendingJob->assertExecutedOnLambda(0);
+
+    // We want to assert that lambda is not dispatching or logging failed jobs.
+    $queuedCount = $pendingJob->countQueuedJobs();
+    $failedCount = $pendingJob->countFailedJobs();
+    app('events')->listen(JobProcessing::class, function () use ($pendingJob, &$queuedCount, &$failedCount) {
+        // Before the lambda starts processing, get the counts for queued and failed.
+        $queuedCount = $pendingJob->countQueuedJobs();
+        $failedCount = $pendingJob->countFailedJobs();
+    });
+    app('events')->listen(LambdaJobProcessed::class, function () use ($pendingJob, &$queuedCount, &$failedCount) {
+        // When the lambda is processed, we expect that the lambda should not have dispatched or failed any jobs.
+        expect($pendingJob->countQueuedJobs())->toBe($queuedCount);
+        expect($pendingJob->countFailedJobs())->toBe($failedCount);
+    });
+
+    // Run Closure
+    $pendingJob->runQueueWorker();
+    expect($queuedCount)->toBe(1); // Dispatch does not happen within the lambda.
+    expect($failedCount)->toBe(0); // Fail does not happen within the lambda.
+    $pendingJob->assertQueued(4); // Dispatch happens after the lambda executes within the worker.
+    $pendingJob->assertNotFailed(); // Fail happens after the lambda executes within the worker.
+    $pendingJob->assertReleased(0);
+    $pendingJob->assertExecutedOnLambda(1);
+
+    // Run PassedJob
+    $pendingJob->runQueueWorker();
+    expect($queuedCount)->toBe(4); // Dispatch does not happen within the lambda.
+    expect($failedCount)->toBe(0); // Fail does not happen within the lambda.
+    $pendingJob->assertQueued(3); // Dispatch happens after the lambda executes within the worker.
+    $pendingJob->assertFailed(0); // Fail happens after the lambda executes within the worker.
+    $pendingJob->assertReleased(0);
+    $pendingJob->assertExecutedOnLambda(2);
+
+    // Run FailedJob
+    $pendingJob->runQueueWorker();
+    expect($queuedCount)->toBe(3); // Dispatch does not happen within the lambda.
+    expect($failedCount)->toBe(0); // Fail does not happen within the lambda.
+    $pendingJob->assertQueued(2); // Dispatch happens after the lambda executes within the worker.
+    $pendingJob->assertFailed(1); // Fail happens after the lambda executes within the worker.
+    $pendingJob->assertReleased(0);
+    $pendingJob->assertExecutedOnLambda(3);
+
+    // Run ReleasedJob
+    $pendingJob->runQueueWorker();
+    expect($queuedCount)->toBe(2); // Dispatch does not happen within the lambda.
+    expect($failedCount)->toBe(1); // Fail does not happen within the lambda.
+    $pendingJob->assertQueued(2); // Dispatch happens after the lambda executes within the worker.
+    $pendingJob->assertFailed(1); // Fail happens after the lambda executes within the worker.
+    $pendingJob->assertReleased(1);
+    $pendingJob->assertExecutedOnLambda(4);
+
+    // Run ThrownJob
+    $pendingJob->runQueueWorker();
+    expect($queuedCount)->toBe(2); // Dispatch does not happen within the lambda.
+    expect($failedCount)->toBe(1); // Fail does not happen within the lambda.
+    $pendingJob->assertQueued(1); // Dispatch happens after the lambda executes within the worker.
+    $pendingJob->assertFailed(2); // Fail happens after the lambda executes within the worker.
+    $pendingJob->assertReleased(1);
+    $pendingJob->assertExecutedOnLambda(5);
+});
