@@ -2,7 +2,6 @@
 
 use Hammerstone\Sidecar\PHP\Tests\TestCase;
 use Illuminate\Pipeline\Pipeline;
-use Illuminate\Support\Facades\Queue;
 
 /*
 |--------------------------------------------------------------------------

@@ -2,7 +2,6 @@
 
 namespace Hammerstone\Sidecar\PHP\Tests\Support\App\Events;
 
-use Exception;
 use Illuminate\Broadcasting\InteractsWithSockets;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Events\Dispatchable;

@@ -4,14 +4,8 @@ namespace Hammerstone\Sidecar\PHP\Tests\Unit;
 
 use Closure;
 use Hammerstone\Sidecar\PHP\Events\LambdaJobProcessed;
-use Hammerstone\Sidecar\PHP\Events\LambdaJobProcessing;
 use Hammerstone\Sidecar\PHP\LaravelLambda;
 use Hammerstone\Sidecar\PHP\Queue\LaravelLambdaWorker;
-use Hammerstone\Sidecar\PHP\Tests\Support\App\Events\FailedEvent;
-use Hammerstone\Sidecar\PHP\Tests\Support\App\Events\PassedEvent;
-use Hammerstone\Sidecar\PHP\Tests\Support\App\Events\ReleasedEvent;
-use Hammerstone\Sidecar\PHP\Tests\Support\App\Events\ReleasedWithDelayEvent;
-use Hammerstone\Sidecar\PHP\Tests\Support\App\Events\ThrownEvent;
 use Hammerstone\Sidecar\PHP\Tests\Support\App\Jobs\FailedJob;
 use Hammerstone\Sidecar\PHP\Tests\Support\App\Jobs\PassedJob;
 use Hammerstone\Sidecar\PHP\Tests\Support\App\Jobs\ReleasedJob;
@@ -19,11 +13,9 @@ use Hammerstone\Sidecar\PHP\Tests\Support\App\Jobs\ThrownJob;
 use Hammerstone\Sidecar\PHP\Tests\Support\QueueTestHelper;
 use Hammerstone\Sidecar\PHP\Tests\Support\SidecarTestHelper;
 use Hammerstone\Sidecar\Results\SettledResult;
-use Illuminate\Queue\Events\JobProcessed;
 use Illuminate\Queue\Events\JobProcessing;
 use Illuminate\Queue\Jobs\DatabaseJob;
 use Illuminate\Support\Arr;
-use Illuminate\Support\Facades\Queue;
 
 beforeEach(function () {
     SidecarTestHelper::record()->enableQueueFeature(optin: true, queues: '*');

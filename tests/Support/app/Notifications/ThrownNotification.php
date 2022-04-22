@@ -5,7 +5,6 @@ namespace Hammerstone\Sidecar\PHP\Tests\Support\App\Notifications;
 use Facades\Hammerstone\Sidecar\PHP\Tests\Support\App\Mail\ThrownMailable;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
-use Illuminate\Notifications\Messages\MailMessage;
 use Illuminate\Notifications\Notification;
 
 class ThrownNotification extends Notification implements ShouldQueue

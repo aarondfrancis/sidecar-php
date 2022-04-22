@@ -7,7 +7,6 @@ use Hammerstone\Sidecar\PHP\Contracts\Queue\DoNotRunInLambda;
 use Hammerstone\Sidecar\PHP\Contracts\Queue\RunInLambda;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
-use Illuminate\Notifications\Messages\MailMessage;
 use Illuminate\Notifications\Notification;
 
 class ImplementsBothRunInLambdaAndDoNotRunInLambdaNotification extends Notification implements ShouldQueue, RunInLambda, DoNotRunInLambda

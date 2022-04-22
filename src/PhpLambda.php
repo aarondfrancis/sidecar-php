@@ -8,7 +8,6 @@ namespace Hammerstone\Sidecar\PHP;
 use Aws\Result;
 use Hammerstone\Sidecar\Clients\LambdaClient;
 use Hammerstone\Sidecar\LambdaFunction;
-use Hammerstone\Sidecar\Region;
 use Hammerstone\Sidecar\Runtime;
 use Laravel\SerializableClosure\SerializableClosure;
 
@@ -80,7 +79,7 @@ class PhpLambda extends LambdaFunction
         }
 
         return [
-            'closure' => base64_encode(serialize(new SerializableClosure($payload)))
+            'closure' => base64_encode(serialize(new SerializableClosure($payload))),
         ];
     }
 

@@ -6,7 +6,6 @@ use Facades\Hammerstone\Sidecar\PHP\Tests\Support\App\Mail\ImplementsDoNotRunInL
 use Hammerstone\Sidecar\PHP\Contracts\Queue\DoNotRunInLambda;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
-use Illuminate\Notifications\Messages\MailMessage;
 use Illuminate\Notifications\Notification;
 
 class ImplementsDoNotRunInLambdaNotification extends Notification implements ShouldQueue, DoNotRunInLambda

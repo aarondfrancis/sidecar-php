@@ -2,7 +2,6 @@
 
 namespace Hammerstone\Sidecar\PHP\Tests\Support\App\Listeners;
 
-use Exception;
 use Hammerstone\Sidecar\PHP\Tests\Support\App\Events\FailedEvent;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Queue\InteractsWithQueue;

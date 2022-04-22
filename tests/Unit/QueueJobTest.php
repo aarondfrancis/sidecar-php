@@ -4,9 +4,6 @@ namespace Hammerstone\Sidecar\PHP\Tests\Unit;
 
 use Hammerstone\Sidecar\PHP\Tests\Support\QueueTestHelper;
 use Hammerstone\Sidecar\PHP\Tests\Support\SidecarTestHelper;
-use Illuminate\Support\Facades\Mail;
-use Illuminate\Support\Facades\Notification;
-use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Str;
 
 /** @see \Hammerstone\Sidecar\PHP\Tests\Unit\WorkJobTest for how we make use of the payload's `optedInForLambdaExecution` and `optedOutForLambdaExecution` values. */

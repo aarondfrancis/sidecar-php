@@ -5,7 +5,6 @@ namespace Hammerstone\Sidecar\PHP\Tests\Support\App\Jobs;
 use Hammerstone\Sidecar\PHP\Contracts\Queue\DoNotRunInLambda;
 use Hammerstone\Sidecar\PHP\Contracts\Queue\RunInLambda;
 use Illuminate\Bus\Queueable;
-use Illuminate\Contracts\Queue\ShouldBeUnique;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
 use Illuminate\Queue\InteractsWithQueue;

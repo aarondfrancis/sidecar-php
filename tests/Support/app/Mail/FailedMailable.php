@@ -2,7 +2,6 @@
 
 namespace Hammerstone\Sidecar\PHP\Tests\Support\App\Mail;
 
-use Exception;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Mail\Mailable;

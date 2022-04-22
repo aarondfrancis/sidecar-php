@@ -5,8 +5,6 @@
 
 namespace Hammerstone\Sidecar\PHP;
 
-use Hammerstone\Sidecar\Region;
-
 class LaravelLambda extends PhpLambda
 {
     public function name()
@@ -37,7 +35,7 @@ class LaravelLambda extends PhpLambda
     {
         return array_merge(parent::variables(), [
             'APP_CONFIG_CACHE' => '/tmp/storage/bootstrap/cache/config.php',
-            'SIDECAR_IS_FULL_LARAVEL' => 'true'
+            'SIDECAR_IS_FULL_LARAVEL' => 'true',
         ]);
     }
 }

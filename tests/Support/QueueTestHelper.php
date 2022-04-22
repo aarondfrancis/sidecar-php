@@ -5,7 +5,6 @@ namespace Hammerstone\Sidecar\PHP\Tests\Support;
 use Closure;
 use Exception;
 use Hammerstone\Sidecar\PHP\Events\LambdaJobProcessed;
-use Hammerstone\Sidecar\PHP\Events\LambdaJobProcessing;
 use Hammerstone\Sidecar\PHP\LaravelLambda;
 use Hammerstone\Sidecar\PHP\PhpLambda;
 use Hammerstone\Sidecar\PHP\Support\Config\SidecarConfig;
@@ -19,13 +18,15 @@ use Illuminate\Support\Facades\Queue;
 
 class QueueTestHelper extends Decorator
 {
+    private static array $queueNames = [];
+
     public $job;
+
     private Closure $dispatcher;
     private QueueContract $queue;
     private ?Job $failedJob = null;
     private ?Job $releasedJob = null;
     private ?string $queueName = null;
-    private static array $queueNames = [];
 
     public function __construct($job, ?Closure $dispatcher = null)
     {

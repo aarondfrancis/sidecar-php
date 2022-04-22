@@ -2,10 +2,13 @@
 
 namespace Hammerstone\Sidecar\PHP\Support\Config;
 
+use Hammerstone\Sidecar\PHP\Support\Config\Concerns\QueueConfigGetters;
+use Hammerstone\Sidecar\PHP\Support\Config\Concerns\QueueConfigSetters;
+
 class SidecarConfig
 {
-    use Concerns\QueueConfigGetters;
-    use Concerns\QueueConfigSetters;
+    use QueueConfigGetters;
+    use QueueConfigSetters;
 
     public static function make()
     {

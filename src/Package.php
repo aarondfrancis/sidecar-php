@@ -17,7 +17,7 @@ class Package extends Base
         $includes = [];
 
         foreach ($paths as $path) {
-            $includes[base_path("vendor/$path")] = "vendor/$path";
+            $includes[base_path("vendor/{$path}")] = "vendor/{$path}";
         }
 
         return $this->includeExactly($includes);
@@ -35,7 +35,7 @@ class Package extends Base
         return $this->withRuntimeSupport()
             ->includeStrings([
                 // Our modified autoloader that doesn't care if files don't exist.
-                'vendor/composer/autoload_real.php' => $this->modifiedAutoloader()
+                'vendor/composer/autoload_real.php' => $this->modifiedAutoloader(),
             ])
             ->includeVendor([
                 // Composer's autoloader entry point.
@@ -59,7 +59,7 @@ class Package extends Base
                 'laravel/framework/src/Illuminate/Support/Str.php',
                 'laravel/framework/src/Illuminate/Macroable/Traits/Macroable.php',
                 'symfony/process',
-                'symfony/polyfill-php80'
+                'symfony/polyfill-php80',
             ]);
     }
 
@@ -81,7 +81,7 @@ class Package extends Base
         // a problem because those files will never get used, so we're
         // just going to eat the error and let the developer know.
         $replacement = <<<'EOT'
-if (!file_exists($file)) {
+if (! file_exists($file)) {
     fwrite(STDERR, "Composer file not found. This may or may not be an issue! Path: $file." . PHP_EOL);
     return;
 }
@@ -93,6 +93,4 @@ EOT;
             'require $file;', $replacement, file_get_contents(base_path('vendor/composer/autoload_real.php'))
         );
     }
-
-
 }
