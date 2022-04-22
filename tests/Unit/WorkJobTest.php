@@ -432,3 +432,38 @@ it('can work failing job chains and triggers the catch callback', function () {
     $pendingJob->assertExecutedOnLambda(3);
     expect(Storage::persistentFake()->get('test.txt'))->toBe('a' . PHP_EOL . 'b' . PHP_EOL . 'CATCH HANDLED IN LAMBDA' . PHP_EOL);
 });
+
+it('can work a job batch', function () {
+    $this->markTestIncomplete('do better');
+    // Assert that all counts are correct.
+});
+
+it('can work a job batch with failures allowed', function () {
+    $this->markTestIncomplete('do better');
+    // Assert that all counts are correct and that there are no duplicate failed job UUIDs.
+});
+
+it('can work a job batch then trigger then callbacks', function () {
+    $this->markTestIncomplete('do better');
+    // Assert that all counts are correct.
+});
+
+it('can work a job batch then trigger catch callbacks', function () {
+    $this->markTestIncomplete('do better');
+    // Assert that all counts are correct and that there are no duplicate failed job UUIDs.
+});
+
+it('can work a job batch then trigger finally callbacks from success', function () {
+    $this->markTestIncomplete('do better');
+    // Assert that all counts are correct.
+});
+
+it('can work a job batch then trigger finally callbacks from failure', function () {
+    $this->markTestIncomplete('do better');
+    // Assert that all counts are correct and that there are no duplicate failed job UUIDs.
+});
+
+it('can work a job batch with chains in it', function () {
+    $this->markTestIncomplete('do better');
+    // Assert that all counts are correct.
+});
