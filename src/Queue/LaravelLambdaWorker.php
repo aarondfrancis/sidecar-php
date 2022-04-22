@@ -161,7 +161,7 @@ class LaravelLambdaWorker extends Worker
                             RedisJob::class => $this->job = $scrubbedPayload,
                             SqsJob::class => $this->job['Body'] = $scrubbedPayload,
                             SyncJob::class => $this->job = $scrubbedPayload,
-                            default => new UnsupportedQueueDriverException(
+                            default => throw new UnsupportedQueueDriverException(
                                 'We do not yet support "job chain catch callbacks" for your queue driver. A PR contribution would be appreciated.'
                             ),
                         };
