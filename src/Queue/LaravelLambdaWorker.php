@@ -146,11 +146,12 @@ class LaravelLambdaWorker extends Worker
                     // Unserialize the exception.
                     $exception = unserialize($result['exception']);
 
-                    // Remove chain callbacks from the payload because we only trigger them inside the lambda.
+                    // Remove batch id and chain callbacks from the payload because they are handled within the lambda.
                     $payloadData = $this->payload()['data'];
                     $payloadData['command'] = unserialize($payloadData['command']);
-                    if ($payloadData['command']->chainCatchCallbacks) {
-                        $payloadData['command']->chainCatchCallbacks = null;
+                    if (data_get($payloadData['command'], 'batchId') || data_get($payloadData['command'], 'chainCatchCallbacks')) {
+                        data_set($payloadData['command'], 'batchId', null);
+                        data_set($payloadData['command'], 'chainCatchCallbacks', null);
                         $payloadData['command'] = serialize($payloadData['command']);
 
                         $scrubbedPayload = json_encode([...$this->payload(), 'data' => $payloadData]);
@@ -162,7 +163,7 @@ class LaravelLambdaWorker extends Worker
                             SqsJob::class => $this->job['Body'] = $scrubbedPayload,
                             SyncJob::class => $this->job = $scrubbedPayload,
                             default => throw new UnsupportedQueueDriverException(
-                                'We do not yet support "job chain catch callbacks" for your queue driver. A PR contribution would be appreciated.'
+                                'We do not yet support "job batching" or "job chain catch callbacks" for your queue driver. A PR contribution would be appreciated.'
                             ),
                         };
                     }

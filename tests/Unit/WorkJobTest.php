@@ -14,11 +14,14 @@ use Hammerstone\Sidecar\PHP\Tests\Support\App\Jobs\ThrownJob;
 use Hammerstone\Sidecar\PHP\Tests\Support\QueueTestHelper;
 use Hammerstone\Sidecar\PHP\Tests\Support\SidecarTestHelper;
 use Hammerstone\Sidecar\Results\SettledResult;
+use Illuminate\Bus\Batch;
+use Illuminate\Bus\PendingBatch;
 use Illuminate\Foundation\Bus\PendingChain;
 use Illuminate\Queue\Events\JobProcessing;
 use Illuminate\Queue\Jobs\DatabaseJob;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\Bus;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 
 beforeEach(function () {
@@ -376,22 +379,22 @@ it('can work job chains', function () {
     $pendingJob->runQueueWorker();
     $pendingJob->assertQueued(1);
     $pendingJob->assertExecutedOnLambda(1);
-    expect(Storage::persistentFake()->get('test.txt'))->toBe('a' . PHP_EOL);
+    expect(Storage::persistentFake()->get('test.txt'))->toBe(implode(PHP_EOL, ['a', '']));
 
     $pendingJob->runQueueWorker();
     $pendingJob->assertQueued(1);
     $pendingJob->assertExecutedOnLambda(2);
-    expect(Storage::persistentFake()->get('test.txt'))->toBe('a' . PHP_EOL . 'b' . PHP_EOL);
+    expect(Storage::persistentFake()->get('test.txt'))->toBe(implode(PHP_EOL, ['a', 'b', '']));
 
     $pendingJob->runQueueWorker();
     $pendingJob->assertQueued(1);
     $pendingJob->assertExecutedOnLambda(3);
-    expect(Storage::persistentFake()->get('test.txt'))->toBe('a' . PHP_EOL . 'b' . PHP_EOL . 'c' . PHP_EOL);
+    expect(Storage::persistentFake()->get('test.txt'))->toBe(implode(PHP_EOL, ['a', 'b', 'c', '']));
 
     $pendingJob->runQueueWorker();
     $pendingJob->assertQueued(0);
     $pendingJob->assertExecutedOnLambda(4);
-    expect(Storage::persistentFake()->get('test.txt'))->toBe('a' . PHP_EOL . 'b' . PHP_EOL . 'c' . PHP_EOL . 'd' . PHP_EOL);
+    expect(Storage::persistentFake()->get('test.txt'))->toBe(implode(PHP_EOL, ['a', 'b', 'c', 'd', '']));
 });
 
 it('can work failing job chains and triggers the catch callback', function () {
@@ -419,51 +422,552 @@ it('can work failing job chains and triggers the catch callback', function () {
     $pendingJob->runQueueWorker();
     $pendingJob->assertQueued(1);
     $pendingJob->assertExecutedOnLambda(1);
-    expect(Storage::persistentFake()->get('test.txt'))->toBe('a' . PHP_EOL);
+    expect(Storage::persistentFake()->get('test.txt'))->toBe(implode(PHP_EOL, ['a', '']));
 
     $pendingJob->runQueueWorker();
     $pendingJob->assertQueued(1);
     $pendingJob->assertExecutedOnLambda(2);
-    expect(Storage::persistentFake()->get('test.txt'))->toBe('a' . PHP_EOL . 'b' . PHP_EOL);
+    expect(Storage::persistentFake()->get('test.txt'))->toBe(implode(PHP_EOL, ['a', 'b', '']));
 
     $pendingJob->runQueueWorker();
     $pendingJob->assertQueued(0);
     $pendingJob->assertFailed(1);
     $pendingJob->assertExecutedOnLambda(3);
-    expect(Storage::persistentFake()->get('test.txt'))->toBe('a' . PHP_EOL . 'b' . PHP_EOL . 'CATCH HANDLED IN LAMBDA' . PHP_EOL);
+    expect(Storage::persistentFake()->get('test.txt'))->toBe(implode(PHP_EOL, [
+        'a',
+        'b',
+        'CATCH HANDLED IN LAMBDA',
+        '',
+    ]));
 });
 
 it('can work a job batch', function () {
-    $this->markTestIncomplete('do better');
-    // Assert that all counts are correct.
+    SidecarTestHelper::record()->enableQueueFeature(optin: false, queues: '*');
+    Storage::persistentFake()->put('test.txt', '');
+    $pendingJob = new QueueTestHelper(
+        Bus::batch([])
+            ->add([
+                fn () => Storage::persistentFake()->put('test.txt', Storage::persistentFake()->get('test.txt') . 'a' . PHP_EOL),
+                fn () => Storage::persistentFake()->put('test.txt', Storage::persistentFake()->get('test.txt') . 'b' . PHP_EOL),
+                fn () => Storage::persistentFake()->put('test.txt', Storage::persistentFake()->get('test.txt') . 'c' . PHP_EOL),
+                fn () => Storage::persistentFake()->put('test.txt', Storage::persistentFake()->get('test.txt') . 'd' . PHP_EOL),
+            ]),
+        fn (PendingBatch $batch) => $batch->dispatch(),
+    );
+    $pendingJob->onQueue('lambda')->dispatch();
+    $pendingJob->assertQueued(4);
+    $pendingJob->assertExecutedOnLambda(0);
+    $batchId = DB::table('job_batches')->value('id');
+    expect(Storage::persistentFake()->get('test.txt'))->toBe('');
+    expect(Arr::only(Bus::findBatch($batchId)->toArray(), ['totalJobs', 'pendingJobs', 'processedJobs', 'failedJobs']))->toBe([
+        'totalJobs' => 4,
+        'pendingJobs' => 4,
+        'processedJobs' => 0,
+        'failedJobs' => 0,
+    ]);
+
+    $pendingJob->runQueueWorker();
+    $pendingJob->assertQueued(3);
+    $pendingJob->assertExecutedOnLambda(1);
+    expect(Storage::persistentFake()->get('test.txt'))->toBe(implode(PHP_EOL, ['a', '']));
+    expect(Arr::only(Bus::findBatch($batchId)->toArray(), ['totalJobs', 'pendingJobs', 'processedJobs', 'failedJobs']))->toBe([
+        'totalJobs' => 4,
+        'pendingJobs' => 3,
+        'processedJobs' => 1,
+        'failedJobs' => 0,
+    ]);
+
+    $pendingJob->runQueueWorker();
+    $pendingJob->assertQueued(2);
+    $pendingJob->assertExecutedOnLambda(2);
+    expect(Storage::persistentFake()->get('test.txt'))->toBe(implode(PHP_EOL, ['a', 'b', '']));
+    expect(Arr::only(Bus::findBatch($batchId)->toArray(), ['totalJobs', 'pendingJobs', 'processedJobs', 'failedJobs']))->toBe([
+        'totalJobs' => 4,
+        'pendingJobs' => 2,
+        'processedJobs' => 2,
+        'failedJobs' => 0,
+    ]);
+
+    $pendingJob->runQueueWorker();
+    $pendingJob->assertQueued(1);
+    $pendingJob->assertExecutedOnLambda(3);
+    expect(Storage::persistentFake()->get('test.txt'))->toBe(implode(PHP_EOL, ['a', 'b', 'c', '']));
+    expect(Arr::only(Bus::findBatch($batchId)->toArray(), ['totalJobs', 'pendingJobs', 'processedJobs', 'failedJobs']))->toBe([
+        'totalJobs' => 4,
+        'pendingJobs' => 1,
+        'processedJobs' => 3,
+        'failedJobs' => 0,
+    ]);
+
+    $pendingJob->runQueueWorker();
+    $pendingJob->assertQueued(0);
+    $pendingJob->assertExecutedOnLambda(4);
+    expect(Storage::persistentFake()->get('test.txt'))->toBe(implode(PHP_EOL, ['a', 'b', 'c', 'd', '']));
+    expect(Arr::only(Bus::findBatch($batchId)->toArray(), ['totalJobs', 'pendingJobs', 'processedJobs', 'failedJobs']))->toBe([
+        'totalJobs' => 4,
+        'pendingJobs' => 0,
+        'processedJobs' => 4,
+        'failedJobs' => 0,
+    ]);
+});
+
+it('can work a job batch then trigger then and finally callbacks', function () {
+    SidecarTestHelper::record()->enableQueueFeature(optin: false, queues: '*');
+    Storage::persistentFake()->put('test.txt', '');
+    app('events')->listen(LambdaJobProcessing::class, fn () => config(['sidecar.is_executing_in_lambda' => true]));
+    app('events')->listen(LambdaJobProcessed::class, fn () => config(['sidecar.is_executing_in_lambda' => false]));
+    $pendingJob = new QueueTestHelper(
+        Bus::batch([])
+            ->add([
+                fn () => Storage::persistentFake()->put('test.txt', Storage::persistentFake()->get('test.txt') . 'a' . PHP_EOL),
+                fn () => Storage::persistentFake()->put('test.txt', Storage::persistentFake()->get('test.txt') . 'b' . PHP_EOL),
+                fn () => Storage::persistentFake()->put('test.txt', Storage::persistentFake()->get('test.txt') . 'c' . PHP_EOL),
+                fn () => Storage::persistentFake()->put('test.txt', Storage::persistentFake()->get('test.txt') . 'd' . PHP_EOL),
+            ])
+            ->catch(fn () => Storage::persistentFake()->put('test.txt', Storage::persistentFake()->get('test.txt') . 'NO FAILURE EXPECTED' . PHP_EOL))
+            ->then(fn () => Storage::persistentFake()->put('test.txt', Storage::persistentFake()->get('test.txt') . (config('sidecar.is_executing_in_lambda', false) ? 'FIRST THEN HANDLED IN LAMBDA' : 'FIRST THEN HANDLED IN WORKER') . PHP_EOL))
+            ->finally(fn () => Storage::persistentFake()->put('test.txt', Storage::persistentFake()->get('test.txt') . (config('sidecar.is_executing_in_lambda', false) ? 'FIRST FINALLY HANDLED IN LAMBDA' : 'FIRST FINALLY HANDLED IN WORKER') . PHP_EOL))
+            ->then(fn () => Storage::persistentFake()->put('test.txt', Storage::persistentFake()->get('test.txt') . (config('sidecar.is_executing_in_lambda', false) ? 'SECOND THEN HANDLED IN LAMBDA' : 'SECOND THEN HANDLED IN WORKER') . PHP_EOL))
+            ->finally(fn () => Storage::persistentFake()->put('test.txt', Storage::persistentFake()->get('test.txt') . (config('sidecar.is_executing_in_lambda', false) ? 'SECOND FINALLY HANDLED IN LAMBDA' : 'SECOND FINALLY HANDLED IN WORKER') . PHP_EOL)),
+        fn (PendingBatch $batch) => $batch->dispatch(),
+    );
+    $pendingJob->onQueue('lambda')->dispatch();
+    $pendingJob->assertQueued(4);
+    $pendingJob->assertExecutedOnLambda(0);
+    $batchId = DB::table('job_batches')->value('id');
+    expect(Storage::persistentFake()->get('test.txt'))->toBe('');
+    expect(Arr::only(Bus::findBatch($batchId)->toArray(), ['totalJobs', 'pendingJobs', 'processedJobs', 'failedJobs']))->toBe([
+        'totalJobs' => 4,
+        'pendingJobs' => 4,
+        'processedJobs' => 0,
+        'failedJobs' => 0,
+    ]);
+
+    $pendingJob->runQueueWorker();
+    $pendingJob->assertQueued(3);
+    $pendingJob->assertExecutedOnLambda(1);
+    expect(Storage::persistentFake()->get('test.txt'))->toBe(implode(PHP_EOL, ['a', '']));
+    expect(Arr::only(Bus::findBatch($batchId)->toArray(), ['totalJobs', 'pendingJobs', 'processedJobs', 'failedJobs']))->toBe([
+        'totalJobs' => 4,
+        'pendingJobs' => 3,
+        'processedJobs' => 1,
+        'failedJobs' => 0,
+    ]);
+
+    $pendingJob->runQueueWorker();
+    $pendingJob->assertQueued(2);
+    $pendingJob->assertExecutedOnLambda(2);
+    expect(Storage::persistentFake()->get('test.txt'))->toBe(implode(PHP_EOL, ['a', 'b', '']));
+    expect(Arr::only(Bus::findBatch($batchId)->toArray(), ['totalJobs', 'pendingJobs', 'processedJobs', 'failedJobs']))->toBe([
+        'totalJobs' => 4,
+        'pendingJobs' => 2,
+        'processedJobs' => 2,
+        'failedJobs' => 0,
+    ]);
+
+    $pendingJob->runQueueWorker();
+    $pendingJob->assertQueued(1);
+    $pendingJob->assertExecutedOnLambda(3);
+    expect(Storage::persistentFake()->get('test.txt'))->toBe(implode(PHP_EOL, ['a', 'b', 'c', '']));
+    expect(Arr::only(Bus::findBatch($batchId)->toArray(), ['totalJobs', 'pendingJobs', 'processedJobs', 'failedJobs']))->toBe([
+        'totalJobs' => 4,
+        'pendingJobs' => 1,
+        'processedJobs' => 3,
+        'failedJobs' => 0,
+    ]);
+
+    $pendingJob->runQueueWorker();
+    $pendingJob->assertQueued(0);
+    $pendingJob->assertExecutedOnLambda(4);
+    expect(Storage::persistentFake()->get('test.txt'))->toBe(implode(PHP_EOL, [
+        'a',
+        'b',
+        'c',
+        'd',
+        'FIRST THEN HANDLED IN LAMBDA',
+        'SECOND THEN HANDLED IN LAMBDA',
+        'FIRST FINALLY HANDLED IN LAMBDA',
+        'SECOND FINALLY HANDLED IN LAMBDA',
+        '',
+    ]));
+    expect(Arr::only(Bus::findBatch($batchId)->toArray(), ['totalJobs', 'pendingJobs', 'processedJobs', 'failedJobs']))->toBe([
+        'totalJobs' => 4,
+        'pendingJobs' => 0,
+        'processedJobs' => 4,
+        'failedJobs' => 0,
+    ]);
 });
 
 it('can work a job batch with failures allowed', function () {
-    $this->markTestIncomplete('do better');
-    // Assert that all counts are correct and that there are no duplicate failed job UUIDs.
+    SidecarTestHelper::record()->enableQueueFeature(optin: false, queues: '*');
+    Storage::persistentFake()->put('test.txt', '');
+    app('events')->listen(LambdaJobProcessing::class, fn () => config(['sidecar.is_executing_in_lambda' => true]));
+    app('events')->listen(LambdaJobProcessed::class, fn () => config(['sidecar.is_executing_in_lambda' => false]));
+    $pendingJob = new QueueTestHelper(
+        Bus::batch([])
+            ->add([
+                // Note: failure is allowed, so the batch should not cancel.
+                fn () => Bus::findBatch(DB::table('job_batches')->value('id'))->cancelled() ? null : Storage::persistentFake()->put('test.txt', Storage::persistentFake()->get('test.txt') . 'a' . PHP_EOL),
+                new FailedJob,
+                fn () => Bus::findBatch(DB::table('job_batches')->value('id'))->cancelled() ? null : Storage::persistentFake()->put('test.txt', Storage::persistentFake()->get('test.txt') . 'c' . PHP_EOL),
+                new FailedJob,
+                fn () => Bus::findBatch(DB::table('job_batches')->value('id'))->cancelled() ? null : Storage::persistentFake()->put('test.txt', Storage::persistentFake()->get('test.txt') . 'e' . PHP_EOL),
+            ])
+            ->then(fn () => Storage::persistentFake()->put('test.txt', Storage::persistentFake()->get('test.txt') . (config('sidecar.is_executing_in_lambda', false) ? 'THEN HANDLED IN LAMBDA' : 'THEN HANDLED IN WORKER') . PHP_EOL))
+            ->catch(fn () => Storage::persistentFake()->put('test.txt', Storage::persistentFake()->get('test.txt') . (config('sidecar.is_executing_in_lambda', false) ? 'CATCH HANDLED IN LAMBDA' : 'CATCH HANDLED IN WORKER') . PHP_EOL))
+            ->finally(fn () => Storage::persistentFake()->put('test.txt', Storage::persistentFake()->get('test.txt') . (config('sidecar.is_executing_in_lambda', false) ? 'FINALLY HANDLED IN LAMBDA' : 'FINALLY HANDLED IN WORKER') . PHP_EOL))
+            ->allowFailures(),
+        fn (PendingBatch $batch) => $batch->dispatch(),
+    );
+    $pendingJob->onQueue('lambda')->dispatch();
+    $pendingJob->assertQueued(5);
+    $pendingJob->assertExecutedOnLambda(0);
+    $batchId = DB::table('job_batches')->value('id');
+    expect(Bus::findBatch($batchId)->cancelled())->toBe(false);
+    expect(Storage::persistentFake()->get('test.txt'))->toBe('');
+    expect(Arr::only(Bus::findBatch($batchId)->toArray(), ['totalJobs', 'pendingJobs', 'processedJobs', 'failedJobs']))->toBe([
+        'totalJobs' => 5,
+        'pendingJobs' => 5,
+        'processedJobs' => 0,
+        'failedJobs' => 0,
+    ]);
+
+    $pendingJob->runQueueWorker();
+    $pendingJob->assertQueued(4);
+    $pendingJob->assertExecutedOnLambda(1);
+    expect(Bus::findBatch($batchId)->cancelled())->toBe(false);
+    expect(Storage::persistentFake()->get('test.txt'))->toBe(implode(PHP_EOL, ['a', '']));
+    expect(Arr::only(Bus::findBatch($batchId)->toArray(), ['totalJobs', 'pendingJobs', 'processedJobs', 'failedJobs']))->toBe([
+        'totalJobs' => 5,
+        'pendingJobs' => 4,
+        'processedJobs' => 1,
+        'failedJobs' => 0,
+    ]);
+
+    $pendingJob->runQueueWorker();
+    $pendingJob->assertQueued(3);
+    $pendingJob->assertExecutedOnLambda(2);
+    expect(Bus::findBatch($batchId)->cancelled())->toBe(false);
+    expect(Storage::persistentFake()->get('test.txt'))->toBe(implode(PHP_EOL, [
+        'a',
+        'CATCH HANDLED IN LAMBDA',
+        '',
+    ]));
+    expect(Arr::only(Bus::findBatch($batchId)->toArray(), ['totalJobs', 'pendingJobs', 'processedJobs', 'failedJobs']))->toBe([
+        'totalJobs' => 5,
+        'pendingJobs' => 4,
+        'processedJobs' => 1,
+        'failedJobs' => 1,
+    ]);
+
+    $pendingJob->runQueueWorker();
+    $pendingJob->assertQueued(2);
+    $pendingJob->assertExecutedOnLambda(3);
+    expect(Bus::findBatch($batchId)->cancelled())->toBe(false);
+    expect(Storage::persistentFake()->get('test.txt'))->toBe(implode(PHP_EOL, [
+        'a',
+        'CATCH HANDLED IN LAMBDA',
+        'c',
+        '',
+    ]));
+    expect(Arr::only(Bus::findBatch($batchId)->toArray(), ['totalJobs', 'pendingJobs', 'processedJobs', 'failedJobs']))->toBe([
+        'totalJobs' => 5,
+        'pendingJobs' => 3,
+        'processedJobs' => 2,
+        'failedJobs' => 1,
+    ]);
+
+    $pendingJob->runQueueWorker();
+    $pendingJob->assertQueued(1);
+    $pendingJob->assertExecutedOnLambda(4);
+    expect(Bus::findBatch($batchId)->cancelled())->toBe(false);
+    expect(Storage::persistentFake()->get('test.txt'))->toBe(implode(PHP_EOL, [
+        'a',
+        'CATCH HANDLED IN LAMBDA',
+        'c',
+        // CATCH only triggers once
+        '',
+    ]));
+    expect(Arr::only(Bus::findBatch($batchId)->toArray(), ['totalJobs', 'pendingJobs', 'processedJobs', 'failedJobs']))->toBe([
+        'totalJobs' => 5,
+        'pendingJobs' => 3,
+        'processedJobs' => 2,
+        'failedJobs' => 2,
+    ]);
+
+    $pendingJob->runQueueWorker();
+    $pendingJob->assertQueued(0);
+    $pendingJob->assertExecutedOnLambda(5);
+    expect(Bus::findBatch($batchId)->cancelled())->toBe(false);
+    expect(Storage::persistentFake()->get('test.txt'))->toBe(implode(PHP_EOL, [
+        'a',
+        'CATCH HANDLED IN LAMBDA',
+        'c',
+        'e',
+        // THEN should not be called because a failure happened
+        'FINALLY HANDLED IN LAMBDA',
+        '',
+    ]));
+    expect(Arr::only(Bus::findBatch($batchId)->toArray(), ['totalJobs', 'pendingJobs', 'processedJobs', 'failedJobs']))->toBe([
+        'totalJobs' => 5,
+        'pendingJobs' => 2,
+        'processedJobs' => 3,
+        'failedJobs' => 2,
+    ]);
 });
 
-it('can work a job batch then trigger then callbacks', function () {
-    $this->markTestIncomplete('do better');
-    // Assert that all counts are correct.
-});
+it('can work a job batch then trigger catch and finally callbacks', function () {
+    SidecarTestHelper::record()->enableQueueFeature(optin: false, queues: '*');
+    Storage::persistentFake()->put('test.txt', '');
+    app('events')->listen(LambdaJobProcessing::class, fn () => config(['sidecar.is_executing_in_lambda' => true]));
+    app('events')->listen(LambdaJobProcessed::class, fn () => config(['sidecar.is_executing_in_lambda' => false]));
+    $pendingJob = new QueueTestHelper(
+        Bus::batch([])
+            ->add([
+                // Note: failure is not allowed, so the batch should cancel.
+                fn () => Bus::findBatch(DB::table('job_batches')->value('id'))->cancelled() ? null : Storage::persistentFake()->put('test.txt', Storage::persistentFake()->get('test.txt') . 'a' . PHP_EOL),
+                new FailedJob,
+                fn () => Bus::findBatch(DB::table('job_batches')->value('id'))->cancelled() ? null : Storage::persistentFake()->put('test.txt', Storage::persistentFake()->get('test.txt') . 'c' . PHP_EOL),
+                fn () => Bus::findBatch(DB::table('job_batches')->value('id'))->cancelled() ? null : Storage::persistentFake()->put('test.txt', Storage::persistentFake()->get('test.txt') . 'd' . PHP_EOL),
+            ])
+            ->then(fn () => Storage::persistentFake()->put('test.txt', Storage::persistentFake()->get('test.txt') . (config('sidecar.is_executing_in_lambda', false) ? 'THEN HANDLED IN LAMBDA' : 'THEN HANDLED IN WORKER') . PHP_EOL))
+            ->catch(fn () => Storage::persistentFake()->put('test.txt', Storage::persistentFake()->get('test.txt') . (config('sidecar.is_executing_in_lambda', false) ? 'CATCH HANDLED IN LAMBDA' : 'CATCH HANDLED IN WORKER') . PHP_EOL))
+            ->finally(fn () => Storage::persistentFake()->put('test.txt', Storage::persistentFake()->get('test.txt') . (config('sidecar.is_executing_in_lambda', false) ? 'FINALLY HANDLED IN LAMBDA' : 'FINALLY HANDLED IN WORKER') . PHP_EOL)),
+        fn (PendingBatch $batch) => $batch->dispatch(),
+    );
+    $pendingJob->onQueue('lambda')->dispatch();
+    $pendingJob->assertQueued(4);
+    $pendingJob->assertExecutedOnLambda(0);
+    $batchId = DB::table('job_batches')->value('id');
+    expect(Bus::findBatch($batchId)->cancelled())->toBe(false);
+    expect(Storage::persistentFake()->get('test.txt'))->toBe('');
+    expect(Arr::only(Bus::findBatch($batchId)->toArray(), ['totalJobs', 'pendingJobs', 'processedJobs', 'failedJobs']))->toBe([
+        'totalJobs' => 4,
+        'pendingJobs' => 4,
+        'processedJobs' => 0,
+        'failedJobs' => 0,
+    ]);
 
-it('can work a job batch then trigger catch callbacks', function () {
-    $this->markTestIncomplete('do better');
-    // Assert that all counts are correct and that there are no duplicate failed job UUIDs.
-});
+    $pendingJob->runQueueWorker();
+    $pendingJob->assertQueued(3);
+    $pendingJob->assertExecutedOnLambda(1);
+    expect(Bus::findBatch($batchId)->cancelled())->toBe(false);
+    expect(Storage::persistentFake()->get('test.txt'))->toBe(implode(PHP_EOL, ['a', '']));
+    expect(Arr::only(Bus::findBatch($batchId)->toArray(), ['totalJobs', 'pendingJobs', 'processedJobs', 'failedJobs']))->toBe([
+        'totalJobs' => 4,
+        'pendingJobs' => 3,
+        'processedJobs' => 1,
+        'failedJobs' => 0,
+    ]);
 
-it('can work a job batch then trigger finally callbacks from success', function () {
-    $this->markTestIncomplete('do better');
-    // Assert that all counts are correct.
-});
+    $pendingJob->runQueueWorker();
+    $pendingJob->assertQueued(2);
+    $pendingJob->assertExecutedOnLambda(2);
+    expect(Bus::findBatch($batchId)->cancelled())->toBe(true);
+    expect(Storage::persistentFake()->get('test.txt'))->toBe(implode(PHP_EOL, [
+        'a',
+        'CATCH HANDLED IN LAMBDA',
+        '',
+    ]));
+    expect(Arr::only(Bus::findBatch($batchId)->toArray(), ['totalJobs', 'pendingJobs', 'processedJobs', 'failedJobs']))->toBe([
+        'totalJobs' => 4,
+        'pendingJobs' => 3,
+        'processedJobs' => 1,
+        'failedJobs' => 1,
+    ]);
 
-it('can work a job batch then trigger finally callbacks from failure', function () {
-    $this->markTestIncomplete('do better');
-    // Assert that all counts are correct and that there are no duplicate failed job UUIDs.
+    $pendingJob->runQueueWorker();
+    $pendingJob->assertQueued(1);
+    $pendingJob->assertExecutedOnLambda(3);
+    expect(Bus::findBatch($batchId)->cancelled())->toBe(true);
+    expect(Storage::persistentFake()->get('test.txt'))->toBe(implode(PHP_EOL, [
+        'a',
+        'CATCH HANDLED IN LAMBDA',
+        // 'c' was not added because of the "batch cancelled" guard check
+        '',
+    ]));
+    expect(Arr::only(Bus::findBatch($batchId)->toArray(), ['totalJobs', 'pendingJobs', 'processedJobs', 'failedJobs']))->toBe([
+        'totalJobs' => 4,
+        'pendingJobs' => 2,
+        'processedJobs' => 2,
+        'failedJobs' => 1,
+    ]);
+
+    $pendingJob->runQueueWorker();
+    $pendingJob->assertQueued(0);
+    $pendingJob->assertExecutedOnLambda(4);
+    expect(Bus::findBatch($batchId)->cancelled())->toBe(true);
+    expect(Storage::persistentFake()->get('test.txt'))->toBe(implode(PHP_EOL, [
+        'a',
+        'CATCH HANDLED IN LAMBDA',
+        // 'c' was not added because of the "batch cancelled" guard check
+        // 'd' was not added because of the "batch cancelled" guard check
+        // THEN is not called because a failure happened
+        'FINALLY HANDLED IN LAMBDA',
+        '',
+    ]));
+    expect(Arr::only(Bus::findBatch($batchId)->toArray(), ['totalJobs', 'pendingJobs', 'processedJobs', 'failedJobs']))->toBe([
+        'totalJobs' => 4,
+        'pendingJobs' => 1,
+        'processedJobs' => 3,
+        'failedJobs' => 1,
+    ]);
 });
 
 it('can work a job batch with chains in it', function () {
-    $this->markTestIncomplete('do better');
-    // Assert that all counts are correct.
+    SidecarTestHelper::record()->enableQueueFeature(optin: false, queues: '*');
+    Storage::persistentFake()->put('test.txt', '');
+    app('events')->listen(LambdaJobProcessing::class, fn () => config(['sidecar.is_executing_in_lambda' => true]));
+    app('events')->listen(LambdaJobProcessed::class, fn () => config(['sidecar.is_executing_in_lambda' => false]));
+    $pendingJob = new QueueTestHelper(
+        Bus::batch([])
+            ->add([
+                fn () => Storage::persistentFake()->put('test.txt', Storage::persistentFake()->get('test.txt') . 'a' . PHP_EOL),
+                [
+                    fn () => Storage::persistentFake()->put('test.txt', Storage::persistentFake()->get('test.txt') . 'b' . PHP_EOL),
+                    fn () => Storage::persistentFake()->put('test.txt', Storage::persistentFake()->get('test.txt') . 'c' . PHP_EOL),
+                ],
+                fn () => Storage::persistentFake()->put('test.txt', Storage::persistentFake()->get('test.txt') . 'd' . PHP_EOL),
+            ]),
+        fn (PendingBatch $batch) => $batch->dispatch(),
+    );
+    $pendingJob->onQueue('lambda')->dispatch();
+    $pendingJob->assertQueued(3); // a, b, d
+    $pendingJob->assertExecutedOnLambda(0);
+    $batchId = DB::table('job_batches')->value('id');
+    expect(Storage::persistentFake()->get('test.txt'))->toBe('');
+    expect(Arr::only(Bus::findBatch($batchId)->toArray(), ['totalJobs', 'pendingJobs', 'processedJobs', 'failedJobs']))->toBe([
+        'totalJobs' => 4,
+        'pendingJobs' => 4,
+        'processedJobs' => 0,
+        'failedJobs' => 0,
+    ]);
+
+    $pendingJob->runQueueWorker(); // a, b, d
+    $pendingJob->assertQueued(2); // b, d
+    $pendingJob->assertExecutedOnLambda(1);
+    expect(Storage::persistentFake()->get('test.txt'))->toBe(implode(PHP_EOL, ['a', '']));
+    expect(Arr::only(Bus::findBatch($batchId)->toArray(), ['totalJobs', 'pendingJobs', 'processedJobs', 'failedJobs']))->toBe([
+        'totalJobs' => 4,
+        'pendingJobs' => 3,
+        'processedJobs' => 1,
+        'failedJobs' => 0,
+    ]);
+
+    $pendingJob->runQueueWorker(); // b, d
+    $pendingJob->assertQueued(2); // d, c
+    $pendingJob->assertExecutedOnLambda(2);
+    expect(Storage::persistentFake()->get('test.txt'))->toBe(implode(PHP_EOL, ['a', 'b', '']));
+    expect(Arr::only(Bus::findBatch($batchId)->toArray(), ['totalJobs', 'pendingJobs', 'processedJobs', 'failedJobs']))->toBe([
+        'totalJobs' => 4,
+        'pendingJobs' => 2,
+        'processedJobs' => 2,
+        'failedJobs' => 0,
+    ]);
+
+    $pendingJob->runQueueWorker(); // d, c
+    $pendingJob->assertQueued(1); // c
+    $pendingJob->assertExecutedOnLambda(3);
+    expect(Storage::persistentFake()->get('test.txt'))->toBe(implode(PHP_EOL, ['a', 'b', 'd', '']));
+    expect(Arr::only(Bus::findBatch($batchId)->toArray(), ['totalJobs', 'pendingJobs', 'processedJobs', 'failedJobs']))->toBe([
+        'totalJobs' => 4,
+        'pendingJobs' => 1,
+        'processedJobs' => 3,
+        'failedJobs' => 0,
+    ]);
+
+    $pendingJob->runQueueWorker(); // c
+    $pendingJob->assertQueued(0); // empty
+    $pendingJob->assertExecutedOnLambda(4);
+    expect(Storage::persistentFake()->get('test.txt'))->toBe(implode(PHP_EOL, ['a', 'b', 'd', 'c', '']));
+    expect(Arr::only(Bus::findBatch($batchId)->toArray(), ['totalJobs', 'pendingJobs', 'processedJobs', 'failedJobs']))->toBe([
+        'totalJobs' => 4,
+        'pendingJobs' => 0,
+        'processedJobs' => 4,
+        'failedJobs' => 0,
+    ]);
+});
+
+it('can work a job batch where jobs are added dynamically after dispatch', function () {
+    $this->markTestIncomplete('Need to work out why jobs added within the lambda are not being passed down to the worker.');
+    SidecarTestHelper::record()->enableQueueFeature(optin: false, queues: '*');
+    Storage::persistentFake()->put('test.txt', '');
+    $pendingJob = new QueueTestHelper(
+        Bus::batch([])
+            ->add([
+                fn () => Storage::persistentFake()->put('test.txt', Storage::persistentFake()->get('test.txt') . 'a' . PHP_EOL),
+                fn () => Storage::persistentFake()->put('test.txt', Storage::persistentFake()->get('test.txt') . 'b' . PHP_EOL),
+                fn () => Bus::findBatch(DB::table('job_batches')->value('id'))->add([
+                    fn () => Storage::persistentFake()->put('test.txt', Storage::persistentFake()->get('test.txt') . 'c' . PHP_EOL),
+                    fn () => Storage::persistentFake()->put('test.txt', Storage::persistentFake()->get('test.txt') . 'd' . PHP_EOL),
+                ]),
+            ]),
+        fn (PendingBatch $batch) => $batch->dispatch(),
+    );
+    $pendingJob->onQueue('lambda')->dispatch();
+    $pendingJob->assertQueued(3);
+    $pendingJob->assertExecutedOnLambda(0);
+    $batchId = DB::table('job_batches')->value('id');
+    expect(Storage::persistentFake()->get('test.txt'))->toBe('');
+    expect(Arr::only(Bus::findBatch($batchId)->toArray(), ['totalJobs', 'pendingJobs', 'processedJobs', 'failedJobs']))->toBe([
+        'totalJobs' => 3,
+        'pendingJobs' => 3,
+        'processedJobs' => 0,
+        'failedJobs' => 0,
+    ]);
+
+    $pendingJob->runQueueWorker();
+    $pendingJob->assertQueued(2);
+    $pendingJob->assertExecutedOnLambda(1);
+    expect(Storage::persistentFake()->get('test.txt'))->toBe(implode(PHP_EOL, ['a', '']));
+    expect(Arr::only(Bus::findBatch($batchId)->toArray(), ['totalJobs', 'pendingJobs', 'processedJobs', 'failedJobs']))->toBe([
+        'totalJobs' => 3,
+        'pendingJobs' => 2,
+        'processedJobs' => 1,
+        'failedJobs' => 0,
+    ]);
+
+    $pendingJob->runQueueWorker();
+    $pendingJob->assertQueued(1);
+    $pendingJob->assertExecutedOnLambda(2);
+    expect(Storage::persistentFake()->get('test.txt'))->toBe(implode(PHP_EOL, ['a', 'b', '']));
+    expect(Arr::only(Bus::findBatch($batchId)->toArray(), ['totalJobs', 'pendingJobs', 'processedJobs', 'failedJobs']))->toBe([
+        'totalJobs' => 3,
+        'pendingJobs' => 1,
+        'processedJobs' => 2,
+        'failedJobs' => 0,
+    ]);
+
+    $pendingJob->runQueueWorker();
+    $pendingJob->assertQueued(2);
+    $pendingJob->assertExecutedOnLambda(3);
+    expect(Storage::persistentFake()->get('test.txt'))->toBe(implode(PHP_EOL, ['a', 'b', ''])); // Jobs were added to the batch on this run
+    expect(Arr::only(Bus::findBatch($batchId)->toArray(), ['totalJobs', 'pendingJobs', 'processedJobs', 'failedJobs']))->toBe([
+        'totalJobs' => 5,
+        'pendingJobs' => 2,
+        'processedJobs' => 3,
+        'failedJobs' => 0,
+    ]);
+
+    $pendingJob->runQueueWorker();
+    $pendingJob->assertQueued(1);
+    $pendingJob->assertExecutedOnLambda(4);
+    expect(Storage::persistentFake()->get('test.txt'))->toBe(implode(PHP_EOL, ['a', 'b', 'c', '']));
+    expect(Arr::only(Bus::findBatch($batchId)->toArray(), ['totalJobs', 'pendingJobs', 'processedJobs', 'failedJobs']))->toBe([
+        'totalJobs' => 5,
+        'pendingJobs' => 1,
+        'processedJobs' => 4,
+        'failedJobs' => 0,
+    ]);
+
+    $pendingJob->runQueueWorker();
+    $pendingJob->assertQueued(0);
+    $pendingJob->assertExecutedOnLambda(5);
+    expect(Storage::persistentFake()->get('test.txt'))->toBe(implode(PHP_EOL, ['a', 'b', 'c', 'd', '']));
+    expect(Arr::only(Bus::findBatch($batchId)->toArray(), ['totalJobs', 'pendingJobs', 'processedJobs', 'failedJobs']))->toBe([
+        'totalJobs' => 5,
+        'pendingJobs' => 0,
+        'processedJobs' => 5,
+        'failedJobs' => 0,
+    ]);
 });
