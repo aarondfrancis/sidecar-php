@@ -4,6 +4,7 @@ namespace Hammerstone\Sidecar\PHP\Tests\Unit;
 
 use Closure;
 use Hammerstone\Sidecar\PHP\Events\LambdaJobProcessed;
+use Hammerstone\Sidecar\PHP\Events\LambdaJobProcessing;
 use Hammerstone\Sidecar\PHP\LaravelLambda;
 use Hammerstone\Sidecar\PHP\Queue\LaravelLambdaWorker;
 use Hammerstone\Sidecar\PHP\Tests\Support\App\Jobs\FailedJob;
@@ -13,9 +14,12 @@ use Hammerstone\Sidecar\PHP\Tests\Support\App\Jobs\ThrownJob;
 use Hammerstone\Sidecar\PHP\Tests\Support\QueueTestHelper;
 use Hammerstone\Sidecar\PHP\Tests\Support\SidecarTestHelper;
 use Hammerstone\Sidecar\Results\SettledResult;
+use Illuminate\Foundation\Bus\PendingChain;
 use Illuminate\Queue\Events\JobProcessing;
 use Illuminate\Queue\Jobs\DatabaseJob;
 use Illuminate\Support\Arr;
+use Illuminate\Support\Facades\Bus;
+use Illuminate\Support\Facades\Storage;
 
 beforeEach(function () {
     SidecarTestHelper::record()->enableQueueFeature(optin: true, queues: '*');
@@ -353,4 +357,78 @@ it('handles dispatching jobs within the lambda', function () {
     $pendingJob->assertFailed(2); // Fail happens after the lambda executes within the worker.
     $pendingJob->assertReleased(1);
     $pendingJob->assertExecutedOnLambda(5);
+});
+
+it('can work job chains', function () {
+    SidecarTestHelper::record()->enableQueueFeature(optin: false, queues: '*');
+    Storage::persistentFake()->put('test.txt', '');
+    $pendingJob = new QueueTestHelper(Bus::chain([
+        fn () => Storage::persistentFake()->put('test.txt', Storage::persistentFake()->get('test.txt') . 'a' . PHP_EOL),
+        fn () => Storage::persistentFake()->put('test.txt', Storage::persistentFake()->get('test.txt') . 'b' . PHP_EOL),
+        fn () => Storage::persistentFake()->put('test.txt', Storage::persistentFake()->get('test.txt') . 'c' . PHP_EOL),
+        fn () => Storage::persistentFake()->put('test.txt', Storage::persistentFake()->get('test.txt') . 'd' . PHP_EOL),
+    ]), fn (PendingChain $chain) => $chain->dispatch());
+    $pendingJob->onQueue('lambda')->dispatch();
+    $pendingJob->assertQueued(1);
+    $pendingJob->assertExecutedOnLambda(0);
+    expect(Storage::persistentFake()->get('test.txt'))->toBe('');
+
+    $pendingJob->runQueueWorker();
+    $pendingJob->assertQueued(1);
+    $pendingJob->assertExecutedOnLambda(1);
+    expect(Storage::persistentFake()->get('test.txt'))->toBe('a' . PHP_EOL);
+
+    $pendingJob->runQueueWorker();
+    $pendingJob->assertQueued(1);
+    $pendingJob->assertExecutedOnLambda(2);
+    expect(Storage::persistentFake()->get('test.txt'))->toBe('a' . PHP_EOL . 'b' . PHP_EOL);
+
+    $pendingJob->runQueueWorker();
+    $pendingJob->assertQueued(1);
+    $pendingJob->assertExecutedOnLambda(3);
+    expect(Storage::persistentFake()->get('test.txt'))->toBe('a' . PHP_EOL . 'b' . PHP_EOL . 'c' . PHP_EOL);
+
+    $pendingJob->runQueueWorker();
+    $pendingJob->assertQueued(0);
+    $pendingJob->assertExecutedOnLambda(4);
+    expect(Storage::persistentFake()->get('test.txt'))->toBe('a' . PHP_EOL . 'b' . PHP_EOL . 'c' . PHP_EOL . 'd' . PHP_EOL);
+});
+
+it('can work failing job chains and triggers the catch callback', function () {
+    SidecarTestHelper::record()->enableQueueFeature(optin: false, queues: '*');
+    Storage::persistentFake()->put('test.txt', '');
+    app('events')->listen(LambdaJobProcessing::class, fn () => config(['sidecar.is_executing_in_lambda' => true]));
+    app('events')->listen(LambdaJobProcessed::class, fn () => config(['sidecar.is_executing_in_lambda' => false]));
+    $pendingJob = new QueueTestHelper(
+        Bus::chain([
+            fn () => Storage::persistentFake()->put('test.txt', Storage::persistentFake()->get('test.txt') . 'a' . PHP_EOL),
+            fn () => Storage::persistentFake()->put('test.txt', Storage::persistentFake()->get('test.txt') . 'b' . PHP_EOL),
+            new FailedJob,
+            fn () => Storage::persistentFake()->put('test.txt', Storage::persistentFake()->get('test.txt') . 'c' . PHP_EOL),
+            fn () => Storage::persistentFake()->put('test.txt', Storage::persistentFake()->get('test.txt') . 'd' . PHP_EOL),
+        ])->catch(
+            fn () => Storage::persistentFake()->put('test.txt', Storage::persistentFake()->get('test.txt') . (config('sidecar.is_executing_in_lambda', false) ? 'CATCH HANDLED IN LAMBDA' : 'CATCH HANDLED IN WORKER') . PHP_EOL)
+        ),
+        fn (PendingChain $chain) => $chain->dispatch(),
+    );
+    $pendingJob->onQueue('lambda')->dispatch();
+    $pendingJob->assertQueued(1);
+    $pendingJob->assertExecutedOnLambda(0);
+    expect(Storage::persistentFake()->get('test.txt'))->toBe('');
+
+    $pendingJob->runQueueWorker();
+    $pendingJob->assertQueued(1);
+    $pendingJob->assertExecutedOnLambda(1);
+    expect(Storage::persistentFake()->get('test.txt'))->toBe('a' . PHP_EOL);
+
+    $pendingJob->runQueueWorker();
+    $pendingJob->assertQueued(1);
+    $pendingJob->assertExecutedOnLambda(2);
+    expect(Storage::persistentFake()->get('test.txt'))->toBe('a' . PHP_EOL . 'b' . PHP_EOL);
+
+    $pendingJob->runQueueWorker();
+    $pendingJob->assertQueued(0);
+    $pendingJob->assertFailed(1);
+    $pendingJob->assertExecutedOnLambda(3);
+    expect(Storage::persistentFake()->get('test.txt'))->toBe('a' . PHP_EOL . 'b' . PHP_EOL . 'CATCH HANDLED IN LAMBDA' . PHP_EOL);
 });

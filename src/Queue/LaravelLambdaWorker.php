@@ -5,9 +5,14 @@ namespace Hammerstone\Sidecar\PHP\Queue;
 use Closure;
 use Hammerstone\Sidecar\PHP\Events\LambdaJobProcessed;
 use Hammerstone\Sidecar\PHP\Events\LambdaJobProcessing;
+use Hammerstone\Sidecar\PHP\Exceptions\UnsupportedQueueDriverException;
 use Hammerstone\Sidecar\PHP\LaravelLambda;
 use Hammerstone\Sidecar\PHP\Support\Decorator;
+use Illuminate\Queue\Jobs\BeanstalkdJob;
+use Illuminate\Queue\Jobs\DatabaseJob;
 use Illuminate\Queue\Jobs\JobName;
+use Illuminate\Queue\Jobs\RedisJob;
+use Illuminate\Queue\Jobs\SqsJob;
 use Illuminate\Queue\Jobs\SyncJob;
 use Illuminate\Queue\Worker;
 use Illuminate\Queue\WorkerOptions;
@@ -138,7 +143,29 @@ class LaravelLambdaWorker extends Worker
                         ], fn () => event(new LambdaJobProcessed($connectionName, $job)));
                     })->throw()->body();
 
+                    // Unserialize the exception.
                     $exception = unserialize($result['exception']);
+
+                    // Remove chain callbacks from the payload because we only trigger them inside the lambda.
+                    $payloadData = $this->payload()['data'];
+                    $payloadData['command'] = unserialize($payloadData['command']);
+                    if ($payloadData['command']->chainCatchCallbacks) {
+                        $payloadData['command']->chainCatchCallbacks = null;
+                        $payloadData['command'] = serialize($payloadData['command']);
+
+                        $scrubbedPayload = json_encode([...$this->payload(), 'data' => $payloadData]);
+
+                        match ($this::class) {
+                            BeanstalkdJob::class => Closure::bind(fn () => $this->data = $scrubbedPayload, $this->job, BeanstalkdJob::class)(),
+                            DatabaseJob::class => $this->job->payload = $scrubbedPayload,
+                            RedisJob::class => $this->job = $scrubbedPayload,
+                            SqsJob::class => $this->job['Body'] = $scrubbedPayload,
+                            SyncJob::class => $this->job = $scrubbedPayload,
+                            default => new UnsupportedQueueDriverException(
+                                'We do not yet support "job chain catch callbacks" for your queue driver. A PR contribution would be appreciated.'
+                            ),
+                        };
+                    }
 
                     // Dispatch any returned jobs.
                     foreach (array_map('unserialize', $result['jobs']) as $job) {
