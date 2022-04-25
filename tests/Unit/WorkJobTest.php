@@ -889,7 +889,6 @@ it('can work a job batch with chains in it', function () {
 });
 
 it('can work a job batch where jobs are added dynamically after dispatch', function () {
-    $this->markTestIncomplete('Need to work out why jobs added within the lambda are not being passed down to the worker.');
     SidecarTestHelper::record()->enableQueueFeature(optin: false, queues: '*');
     Storage::persistentFake()->put('test.txt', '');
     $pendingJob = new QueueTestHelper(

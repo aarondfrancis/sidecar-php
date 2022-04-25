@@ -9,6 +9,8 @@ use Hammerstone\Sidecar\PHP\LaravelLambda;
 use Hammerstone\Sidecar\PHP\PhpLambda;
 use Hammerstone\Sidecar\PHP\Support\Config\SidecarConfig;
 use Hammerstone\Sidecar\PHP\Support\Decorator;
+use Illuminate\Bus\BatchRepository;
+use Illuminate\Bus\DatabaseBatchRepository;
 use Illuminate\Contracts\Queue\Job;
 use Illuminate\Contracts\Queue\Queue as QueueContract;
 use Illuminate\Queue\DatabaseQueue;
@@ -67,6 +69,9 @@ class QueueTestHelper extends Decorator
         app('events')->listen(LambdaJobProcessed::class, fn () => app()->forgetInstance('queue'));
         app('events')->listen(LambdaJobProcessed::class, fn () => app()->forgetInstance('queue.failer'));
         app('events')->listen(LambdaJobProcessed::class, fn () => app()->forgetInstance('queue.connection'));
+        app('events')->listen(LambdaJobProcessed::class, fn () => app()->forgetInstance(BatchRepository::class));
+        app('events')->listen(LambdaJobProcessed::class, fn () => app()->forgetInstance(DatabaseBatchRepository::class));
+        app('events')->listen(LambdaJobProcessed::class, fn () => Queue::swap(app('queue')));
 
         PhpLambda::mock();
 

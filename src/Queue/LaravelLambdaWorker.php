@@ -8,6 +8,8 @@ use Hammerstone\Sidecar\PHP\Events\LambdaJobProcessing;
 use Hammerstone\Sidecar\PHP\Exceptions\UnsupportedQueueDriverException;
 use Hammerstone\Sidecar\PHP\LaravelLambda;
 use Hammerstone\Sidecar\PHP\Support\Decorator;
+use Illuminate\Bus\BatchRepository;
+use Illuminate\Bus\DatabaseBatchRepository;
 use Illuminate\Queue\Jobs\BeanstalkdJob;
 use Illuminate\Queue\Jobs\DatabaseJob;
 use Illuminate\Queue\Jobs\JobName;
@@ -65,6 +67,22 @@ class LaravelLambdaWorker extends Worker
                     $payload['failOnTimeout'] ??= $this->shouldFailOnTimeout();
 
                     $result = LaravelLambda::execute(function () use ($class, $method, $data, $queue, $payload, $connectionName) {
+                        // TODO: set drivers to collect logs for the response.
+
+                        // Turn off the queue - the worker will dispatch/delete/fail/release jobs based on the returned payload.
+                        config([
+                            'queue.default' => 'null',
+                            'queue.failed.driver' => 'null',
+                            'queue.connections.null.driver' => 'null',
+                        ]);
+                        app()->forgetInstance('queue');
+                        app()->forgetInstance('queue.failer');
+                        app()->forgetInstance('queue.connection');
+                        app()->forgetInstance(BatchRepository::class);
+                        app()->forgetInstance(DatabaseBatchRepository::class);
+                        Queue::fake();
+
+                        // Switch to SyncJob because it catches everything that we want to be return to the worker.
                         $exception = null;
                         $container = app();
                         $rawPayload = json_encode($payload);
@@ -86,19 +104,6 @@ class LaravelLambdaWorker extends Worker
                                 return $this->payload()['id'] ?? null;
                             }
                         };
-
-                        // TODO: set drivers to collect logs for the response.
-
-                        // Turn off the queue - the worker will dispatch/delete/fail/release jobs based on the returned payload.
-                        config([
-                            'queue.default' => 'null',
-                            'queue.failed.driver' => 'null',
-                            'queue.connections.null.driver' => 'null',
-                        ]);
-                        app()->forgetInstance('queue');
-                        app()->forgetInstance('queue.failer');
-                        app()->forgetInstance('queue.connection');
-                        Queue::fake();
 
                         event(new LambdaJobProcessing($connectionName, $job));
 
@@ -170,7 +175,10 @@ class LaravelLambdaWorker extends Worker
 
                     // Dispatch any returned jobs.
                     foreach (array_map('unserialize', $result['jobs']) as $job) {
-                        dispatch($job);
+                        $batch = method_exists($job, 'batch') ? $job->batch() : null;
+                        $queue = data_get($batch, 'options.queue', $job?->queue);
+                        $connection = data_get($batch, 'options.connection', $job?->connection);
+                        app('queue')->connection($connection)->pushOn($queue, $job);
                     }
 
                     // Pushes to failed_jobs and deletes the current job.
