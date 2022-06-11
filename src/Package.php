@@ -24,6 +24,21 @@ class Package extends Base
         return $this->includeExactly($includes);
     }
 
+    public function includesForTests()
+    {
+        if (! app()->runningUnitTests()) {
+            return $this;
+        }
+
+        return $this
+            ->includeVendor('*')
+            ->includeExactly([
+                __DIR__ => 'src',
+                __DIR__ . '/../tests' => 'tests',
+                __DIR__ . '/Runtime' => '',
+            ]);
+    }
+
     public function withRuntimeSupport()
     {
         return $this->includeExactly([
@@ -72,7 +87,7 @@ class Package extends Base
             ->setBasePath(base_path())
             // And then include everything.
             ->include('*')
-            ->includeVendor('*');
+            ->includesForTests();
     }
 
     protected function vendorPath($path)
