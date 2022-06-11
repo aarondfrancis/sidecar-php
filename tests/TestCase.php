@@ -13,6 +13,7 @@ use Hammerstone\Sidecar\PHP\Tests\Support\App\Providers\EventServiceProvider;
 use Hammerstone\Sidecar\PHP\Tests\Support\QueueTestHelper;
 use Hammerstone\Sidecar\PHP\Tests\Support\SidecarTestHelper;
 use Hammerstone\Sidecar\Providers\SidecarServiceProvider;
+use Hammerstone\Sidecar\Sidecar;
 use Illuminate\Foundation\Bootstrap\LoadConfiguration;
 use Illuminate\Foundation\Bootstrap\LoadEnvironmentVariables;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -80,6 +81,9 @@ abstract class TestCase extends BaseTestCase
         (new SidecarServiceProvider($app))->register();
         if (static::$deployed === false && $mocking === false) {
             static::$deployed = true;
+            Sidecar::addLogger(function ($message) {
+                echo $message . PHP_EOL;
+            });
             Deployment::make()->deploy()->activate(true);
         }
 

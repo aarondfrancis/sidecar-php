@@ -7,17 +7,18 @@ namespace Hammerstone\Sidecar\PHP;
 
 use Hammerstone\Sidecar\Package as Base;
 use Illuminate\Support\Arr;
+use Illuminate\Support\Str;
 
 class Package extends Base
 {
     public function includeVendor($path)
     {
-        $paths = Arr::wrap($path);
+        $paths = array_map(fn ($path) => $path === '*' ? '' : $path, Arr::wrap($path));
 
         $includes = [];
 
         foreach ($paths as $path) {
-            $includes[base_path("vendor/{$path}")] = "vendor/{$path}";
+            $includes[$this->vendorPath($path)] = rtrim("vendor/{$path}", '/');
         }
 
         return $this->includeExactly($includes);
@@ -70,7 +71,15 @@ class Package extends Base
             // set the base path to the base path of the Laravel app.
             ->setBasePath(base_path())
             // And then include everything.
-            ->include('*');
+            ->include('*')
+            ->includeVendor('*');
+    }
+
+    protected function vendorPath($path)
+    {
+        $path = Str::of($path)->ltrim('/')->prepend('vendor/');
+
+        return app()->runningUnitTests() ? realpath(__DIR__ . "/../{$path}") : base_path($path);
     }
 
     protected function modifiedAutoloader()
@@ -90,7 +99,7 @@ require $file;
 EOT;
 
         return str_replace(
-            'require $file;', $replacement, file_get_contents(base_path('vendor/composer/autoload_real.php'))
+            'require $file;', $replacement, file_get_contents($this->vendorPath('composer/autoload_real.php'))
         );
     }
 }
