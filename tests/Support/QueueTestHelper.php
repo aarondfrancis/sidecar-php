@@ -16,6 +16,7 @@ use Illuminate\Contracts\Queue\Queue as QueueContract;
 use Illuminate\Queue\DatabaseQueue;
 use Illuminate\Queue\Events\JobFailed;
 use Illuminate\Queue\Failed\FailedJobProviderInterface;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Queue;
 
 class QueueTestHelper extends Decorator
@@ -64,13 +65,17 @@ class QueueTestHelper extends Decorator
 
     public function mock(): self
     {
-        $config = config('queue');
-        app('events')->listen(LambdaJobProcessed::class, fn () => config(['queue' => $config]));
+        $queueConfig = config('queue');
+        $loggingConfig = config('logging');
+        app('events')->listen(LambdaJobProcessed::class, fn () => config(['queue' => $queueConfig]));
+        app('events')->listen(LambdaJobProcessed::class, fn () => config(['logging' => $loggingConfig]));
+        app('events')->listen(LambdaJobProcessed::class, fn () => app()->forgetInstance('log'));
         app('events')->listen(LambdaJobProcessed::class, fn () => app()->forgetInstance('queue'));
         app('events')->listen(LambdaJobProcessed::class, fn () => app()->forgetInstance('queue.failer'));
         app('events')->listen(LambdaJobProcessed::class, fn () => app()->forgetInstance('queue.connection'));
         app('events')->listen(LambdaJobProcessed::class, fn () => app()->forgetInstance(BatchRepository::class));
         app('events')->listen(LambdaJobProcessed::class, fn () => app()->forgetInstance(DatabaseBatchRepository::class));
+        app('events')->listen(LambdaJobProcessed::class, fn () => Log::swap(app('log')));
         app('events')->listen(LambdaJobProcessed::class, fn () => Queue::swap(app('queue')));
 
         PhpLambda::mock();

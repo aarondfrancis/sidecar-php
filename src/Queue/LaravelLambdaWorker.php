@@ -10,6 +10,7 @@ use Hammerstone\Sidecar\PHP\LaravelLambda;
 use Hammerstone\Sidecar\PHP\Support\Decorator;
 use Illuminate\Bus\BatchRepository;
 use Illuminate\Bus\DatabaseBatchRepository;
+use Illuminate\Log\Events\MessageLogged;
 use Illuminate\Queue\Jobs\BeanstalkdJob;
 use Illuminate\Queue\Jobs\DatabaseJob;
 use Illuminate\Queue\Jobs\JobName;
@@ -19,6 +20,7 @@ use Illuminate\Queue\Jobs\SyncJob;
 use Illuminate\Queue\Worker;
 use Illuminate\Queue\WorkerOptions;
 use Illuminate\Support\Arr;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Queue;
 use ReflectionClass;
 use ReflectionFunction;
@@ -66,8 +68,12 @@ class LaravelLambdaWorker extends Worker
                     $payload['retryUntil'] ??= $this->retryUntil();
                     $payload['failOnTimeout'] ??= $this->shouldFailOnTimeout();
 
+                    // BEGIN LAMBDA CODE
                     $result = LaravelLambda::execute(function () use ($class, $method, $data, $queue, $payload, $connectionName) {
-                        // TODO: set drivers to collect logs for the response.
+                        // We will not log within the lambda. We will collect logs and return them in the payload.
+                        $logs = collect();
+                        Log::swap(Log::build(['driver' => 'null']));
+                        Log::listen(fn (MessageLogged $event) => $logs->push($event));
 
                         // Turn off the queue - the worker will dispatch/delete/fail/release jobs based on the returned payload.
                         config([
@@ -144,9 +150,15 @@ class LaravelLambdaWorker extends Worker
                             'released' => $job->isReleased(),
                             'delay' => (int) $job->delay,
                             'jobs' => collect(Queue::pushedJobs())->collapse()->map(fn ($item) => serialize($item['job']))->all(),
-                            // TODO: logs to log. This should be done by the queue manager because a Forge box likely would have a log file vs. cloudwatch logs.
+                            'logs' => $logs->map(fn (MessageLogged $event) => [$event->level, $event->message, $event->context])->all(),
                         ], fn () => event(new LambdaJobProcessed($connectionName, $job)));
                     })->throw()->body();
+                    // END LAMBDA CODE
+
+                    // Add to log.
+                    foreach ($result['logs'] as $log) {
+                        Log::log(...$log);
+                    }
 
                     // Unserialize the exception.
                     $exception = unserialize($result['exception']);

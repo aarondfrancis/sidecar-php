@@ -14,7 +14,6 @@ use Hammerstone\Sidecar\PHP\Tests\Support\App\Jobs\ThrownJob;
 use Hammerstone\Sidecar\PHP\Tests\Support\QueueTestHelper;
 use Hammerstone\Sidecar\PHP\Tests\Support\SidecarTestHelper;
 use Hammerstone\Sidecar\Results\SettledResult;
-use Illuminate\Bus\Batch;
 use Illuminate\Bus\PendingBatch;
 use Illuminate\Foundation\Bus\PendingChain;
 use Illuminate\Queue\Events\JobProcessing;
@@ -22,7 +21,9 @@ use Illuminate\Queue\Jobs\DatabaseJob;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\Bus;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Str;
 
 beforeEach(function () {
     SidecarTestHelper::record()->enableQueueFeature(optin: true, queues: '*');
@@ -969,4 +970,48 @@ it('can work a job batch where jobs are added dynamically after dispatch', funct
         'processedJobs' => 5,
         'failedJobs' => 0,
     ]);
+});
+
+it('logs but not within the lambda', function () {
+    Storage::persistentFake()->put('log.txt', '');
+    config([
+        'logging.default' => 'single',
+        'logging.channels.single.path' => Storage::persistentFake()->path('log.txt'),
+    ]);
+    SidecarTestHelper::record()->enableQueueFeature(optin: false, queues: '*');
+    $pendingJob = new QueueTestHelper(function () {
+        dispatch(fn () => Log::info('puppy'))->onQueue('lambda');
+        dispatch(fn () => Log::debug('kitten'))->onQueue('lambda');
+        dispatch(fn () => Log::error('fish'))->onQueue('lambda');
+    }, fn (Closure $closure) => dispatch($closure));
+    $pendingJob->onQueue('lambda')->dispatch();
+    $pendingJob->runQueueWorker();
+
+    expect(Str::of(Storage::persistentFake()->get('log.txt'))->contains('.INFO: puppy'))->toBe($hasPuppy = false);
+    expect(Str::of(Storage::persistentFake()->get('log.txt'))->contains('.DEBUG: kitten'))->toBe($hasKitten = false);
+    expect(Str::of(Storage::persistentFake()->get('log.txt'))->contains('.ERROR: fish'))->toBe($hasFish = false);
+
+    app('events')->listen(LambdaJobProcessed::class, function () use (&$hasPuppy, &$hasKitten, &$hasFish) {
+        expect(Str::of(Storage::persistentFake()->get('log.txt'))->contains('.INFO: puppy'))->toBe($hasPuppy);
+        expect(Str::of(Storage::persistentFake()->get('log.txt'))->contains('.DEBUG: kitten'))->toBe($hasKitten);
+        expect(Str::of(Storage::persistentFake()->get('log.txt'))->contains('.ERROR: fish'))->toBe($hasFish);
+    });
+
+    $pendingJob->runQueueWorker();
+    // LambdaJobProcessed event listener asserts that the lambda did not add anything to the logs. Currently: false, false, false
+    expect(Str::of(Storage::persistentFake()->get('log.txt'))->contains('.INFO: puppy'))->toBe($hasPuppy = true); // Logged outside of the lambda.
+    expect(Str::of(Storage::persistentFake()->get('log.txt'))->contains('.DEBUG: kitten'))->toBe($hasKitten = false);
+    expect(Str::of(Storage::persistentFake()->get('log.txt'))->contains('.ERROR: fish'))->toBe($hasFish = false);
+
+    $pendingJob->runQueueWorker();
+    // LambdaJobProcessed event listener asserts that the lambda did not add anything to the logs. Currently: true, false, false
+    expect(Str::of(Storage::persistentFake()->get('log.txt'))->contains('.INFO: puppy'))->toBe($hasPuppy = true);
+    expect(Str::of(Storage::persistentFake()->get('log.txt'))->contains('.DEBUG: kitten'))->toBe($hasKitten = true); // Logged outside of the lambda.
+    expect(Str::of(Storage::persistentFake()->get('log.txt'))->contains('.ERROR: fish'))->toBe($hasFish = false);
+
+    $pendingJob->runQueueWorker();
+    // LambdaJobProcessed event listener asserts that the lambda did not add anything to the logs. Currently: true, true, false
+    expect(Str::of(Storage::persistentFake()->get('log.txt'))->contains('.INFO: puppy'))->toBe($hasPuppy = true);
+    expect(Str::of(Storage::persistentFake()->get('log.txt'))->contains('.DEBUG: kitten'))->toBe($hasKitten = true);
+    expect(Str::of(Storage::persistentFake()->get('log.txt'))->contains('.ERROR: fish'))->toBe($hasFish = true); // Logged outside of the lambda.
 });
