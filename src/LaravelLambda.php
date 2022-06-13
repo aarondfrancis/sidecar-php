@@ -35,6 +35,10 @@ class LaravelLambda extends PhpLambda
     {
         return array_merge(parent::variables(), [
             'APP_CONFIG_CACHE' => '/tmp/storage/bootstrap/cache/config.php',
+            'APP_EVENTS_CACHE' => '/tmp/storage/bootstrap/cache/events.php',
+            'APP_PACKAGES_CACHE' => '/tmp/storage/bootstrap/cache/packages.php',
+            'APP_ROUTES_CACHE' => '/tmp/storage/bootstrap/cache/routes-v7.php',
+            'APP_SERVICES_CACHE' => '/tmp/storage/bootstrap/cache/services.php',
             'SIDECAR_IS_FULL_LARAVEL' => 'true',
         ]);
     }
