@@ -31,11 +31,30 @@ class Package extends Base
             return $this;
         }
 
+        $bootstrap = '
+            $app = new Illuminate\Foundation\Application($_ENV["APP_BASE_PATH"] ?? dirname(__DIR__));
+            $app->singleton(Illuminate\Contracts\Http\Kernel::class, Illuminate\Foundation\Http\Kernel::class);
+            $app->singleton(Illuminate\Contracts\Console\Kernel::class, Illuminate\Foundation\Console\Kernel::class);
+            $app->singleton(Illuminate\Contracts\Debug\ExceptionHandler::class, Illuminate\Foundation\Exceptions\Handler::class);
+
+            // When we autoload, we do not want real time facades generating in the wrong spot
+            Laravel\Vapor\Runtime\StorageDirectories::create();
+            $app->useStoragePath(Laravel\Vapor\Runtime\StorageDirectories::PATH);
+        ';
+
         $autoload = collect(File::allFiles(__DIR__ . '/../tests/Support'))
             ->filter(fn ($path) => Str::endsWith($path, '.php'))
             ->map(fn ($path) => Str::after($path->getRealPath(), realpath(__DIR__ . '/..') . '/'))
             ->map(fn ($path) => "if (! in_array(\$realpath = realpath(__DIR__ . '/../{$path}'), \$includedFiles)) include \$realpath;")
+            ->prepend('$includedFiles = get_included_files();')
             ->implode(PHP_EOL);
+
+        $register = '
+            // Register the event listeners
+            (new Illuminate\Foundation\ProviderRepository($app, new Illuminate\Filesystem\Filesystem, $app->getCachedServicesPath()))->load([
+                Hammerstone\Sidecar\PHP\Tests\Support\App\Providers\EventServiceProvider::class,
+            ]);
+        ';
 
         return $this
             ->includeVendor('*')
@@ -45,14 +64,14 @@ class Package extends Base
                 __DIR__ . '/Runtime' => '',
             ])
             ->includeStrings([
-                'bootstrap/app.php' => sprintf('<?php
-                    $app = new Illuminate\Foundation\Application($_ENV["APP_BASE_PATH"] ?? dirname(__DIR__));
-                    $app->singleton(Illuminate\Contracts\Http\Kernel::class, Illuminate\Foundation\Http\Kernel::class);
-                    $app->singleton(Illuminate\Contracts\Console\Kernel::class, Illuminate\Foundation\Console\Kernel::class);
-                    $app->singleton(Illuminate\Contracts\Debug\ExceptionHandler::class, Illuminate\Foundation\Exceptions\Handler::class);
-                    $includedFiles = get_included_files();
-                    %s
-                    return $app;', $autoload),
+                'resources/views/email.blade.php' => '{{ $content ?? "" }}',
+                'bootstrap/app.php' => implode(PHP_EOL, [
+                    '<?php',
+                    $bootstrap,
+                    $autoload,
+                    $register,
+                    'return $app;',
+                ]),
             ]);
     }
 
