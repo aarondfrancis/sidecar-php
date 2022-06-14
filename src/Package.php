@@ -7,6 +7,7 @@ namespace Hammerstone\Sidecar\PHP;
 
 use Hammerstone\Sidecar\Package as Base;
 use Illuminate\Support\Arr;
+use Illuminate\Support\Facades\File;
 use Illuminate\Support\Str;
 
 class Package extends Base
@@ -24,11 +25,17 @@ class Package extends Base
         return $this->includeExactly($includes);
     }
 
-    public function includesForTests()
+    public function includesForTestSuite()
     {
         if (! app()->runningUnitTests()) {
             return $this;
         }
+
+        $autoload = collect(File::allFiles(__DIR__ . '/../tests/Support'))
+            ->filter(fn ($path) => Str::endsWith($path, '.php'))
+            ->map(fn ($path) => Str::after($path->getRealPath(), realpath(__DIR__ . '/..') . '/'))
+            ->map(fn ($path) => "if (! in_array(\$realpath = realpath(__DIR__ . '/../{$path}'), \$includedFiles)) include \$realpath;")
+            ->implode(PHP_EOL);
 
         return $this
             ->includeVendor('*')
@@ -38,12 +45,14 @@ class Package extends Base
                 __DIR__ . '/Runtime' => '',
             ])
             ->includeStrings([
-                'bootstrap/app.php' => '<?php
+                'bootstrap/app.php' => sprintf('<?php
                     $app = new Illuminate\Foundation\Application($_ENV["APP_BASE_PATH"] ?? dirname(__DIR__));
                     $app->singleton(Illuminate\Contracts\Http\Kernel::class, Illuminate\Foundation\Http\Kernel::class);
                     $app->singleton(Illuminate\Contracts\Console\Kernel::class, Illuminate\Foundation\Console\Kernel::class);
                     $app->singleton(Illuminate\Contracts\Debug\ExceptionHandler::class, Illuminate\Foundation\Exceptions\Handler::class);
-                    return $app;',
+                    $includedFiles = get_included_files();
+                    %s
+                    return $app;', $autoload),
             ]);
     }
 
@@ -95,7 +104,7 @@ class Package extends Base
             ->setBasePath(base_path())
             // And then include everything.
             ->include('*')
-            ->includesForTests();
+            ->includesForTestSuite();
     }
 
     protected function vendorPath($path)
