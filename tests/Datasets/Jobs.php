@@ -53,7 +53,6 @@ use Hammerstone\Sidecar\PHP\Tests\Support\App\PayService\Payables\ReleasedPayabl
 use Hammerstone\Sidecar\PHP\Tests\Support\App\PayService\Payables\ReleasedWithDelayPayable;
 use Hammerstone\Sidecar\PHP\Tests\Support\App\PayService\Payables\ThrownPayable;
 use Hammerstone\Sidecar\PHP\Tests\Support\QueueTestHelper;
-use Illuminate\Contracts\Queue\Queue;
 use Illuminate\Support\Facades\Notification;
 
 $passed = [

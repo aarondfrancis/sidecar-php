@@ -36,7 +36,9 @@ class Package extends Base
             $app->singleton(Illuminate\Contracts\Http\Kernel::class, Illuminate\Foundation\Http\Kernel::class);
             $app->singleton(Illuminate\Contracts\Console\Kernel::class, Illuminate\Foundation\Console\Kernel::class);
             $app->singleton(Illuminate\Contracts\Debug\ExceptionHandler::class, Illuminate\Foundation\Exceptions\Handler::class);
+        ';
 
+        $storage = '
             // When we autoload, we do not want real time facades generating in the wrong spot
             Laravel\Vapor\Runtime\StorageDirectories::create();
             $app->useStoragePath(Laravel\Vapor\Runtime\StorageDirectories::PATH);
@@ -60,6 +62,7 @@ class Package extends Base
             ->includeVendor('*')
             ->includeExactly([
                 __DIR__ => 'src',
+                __DIR__ . '/../.env' => '.env',
                 __DIR__ . '/../tests' => 'tests',
                 __DIR__ . '/Runtime' => '',
             ])
@@ -68,6 +71,7 @@ class Package extends Base
                 'bootstrap/app.php' => implode(PHP_EOL, [
                     '<?php',
                     $bootstrap,
+                    $storage,
                     $autoload,
                     $register,
                     'return $app;',
