@@ -47,6 +47,8 @@ class Package extends Base
         $autoload = collect(File::allFiles(__DIR__ . '/../tests/Support'))
             ->filter(fn ($path) => Str::endsWith($path, '.php'))
             ->map(fn ($path) => Str::after($path->getRealPath(), realpath(__DIR__ . '/..') . '/'))
+            ->push('tests/TestCase.php')
+            ->push('tests/Pest.php')
             ->map(fn ($path) => "if (! in_array(\$realpath = realpath(__DIR__ . '/../{$path}'), \$includedFiles)) include \$realpath;")
             ->prepend('$includedFiles = get_included_files();')
             ->implode(PHP_EOL);
@@ -57,6 +59,12 @@ class Package extends Base
                 Hammerstone\Sidecar\PHP\Tests\Support\App\Providers\EventServiceProvider::class,
             ]);
         ';
+
+        $tests = collect(File::allFiles(__DIR__ . '/../tests'))
+            ->filter(fn ($path) => Str::endsWith($path, 'Test.php'))
+            ->map(fn ($path) => Str::after($path->getRealPath(), realpath(__DIR__ . '/..') . '/'))
+            ->map(fn ($path) => "(new Pest\Factories\TestCaseFactory(\$filename = realpath(__DIR__ . '/../{$path}'), 'description'))->build(new Pest\TestSuite(realpath(__DIR__ . '/../'), \$filename));")
+            ->implode(PHP_EOL);
 
         return $this
             ->includeVendor('*')
@@ -74,6 +82,7 @@ class Package extends Base
                     $storage,
                     $autoload,
                     $register,
+                    $tests,
                     'return $app;',
                 ]),
             ]);
