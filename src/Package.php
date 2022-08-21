@@ -32,6 +32,7 @@ class Package extends Base
         }
 
         $bootstrap = '
+            Pest\TestSuite::getInstance(realpath(__DIR__ . "/.."), "tests");
             $app = new Illuminate\Foundation\Application($_ENV["APP_BASE_PATH"] ?? dirname(__DIR__));
             $app->singleton(Illuminate\Contracts\Http\Kernel::class, Illuminate\Foundation\Http\Kernel::class);
             $app->singleton(Illuminate\Contracts\Console\Kernel::class, Illuminate\Foundation\Console\Kernel::class);
@@ -49,7 +50,10 @@ class Package extends Base
             ->map(fn ($path) => Str::after($path->getRealPath(), realpath(__DIR__ . '/..') . '/'))
             ->push('tests/TestCase.php')
             ->push('tests/Pest.php')
-            ->map(fn ($path) => "if (! in_array(\$realpath = realpath(__DIR__ . '/../{$path}'), \$includedFiles)) include \$realpath;")
+            ->map(fn ($path) => vsprintf("if (! in_array(%s, \$includedFiles)) include %s;", [
+                "realpath(__DIR__ . '/../{$path}')",
+                "realpath(__DIR__ . '/../{$path}')",
+            ]))
             ->prepend('$includedFiles = get_included_files();')
             ->implode(PHP_EOL);
 
@@ -63,7 +67,11 @@ class Package extends Base
         $tests = collect(File::allFiles(__DIR__ . '/../tests'))
             ->filter(fn ($path) => Str::endsWith($path, 'Test.php'))
             ->map(fn ($path) => Str::after($path->getRealPath(), realpath(__DIR__ . '/..') . '/'))
-            ->map(fn ($path) => "(new Pest\Factories\TestCaseFactory(\$filename = realpath(__DIR__ . '/../{$path}'), 'description'))->build(new Pest\TestSuite(realpath(__DIR__ . '/../'), \$filename));")
+            ->map(fn ($path) => vsprintf("(new Pest\Factories\TestCaseFactory(%s, 'description'))->build(new Pest\TestSuite(%s, %s));", [
+                "realpath(__DIR__ . '/../{$path}')",
+                "realpath(__DIR__ . '/../')",
+                "realpath(__DIR__ . '/../{$path}')",
+            ]))
             ->implode(PHP_EOL);
 
         return $this
